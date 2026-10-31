@@ -22,6 +22,7 @@ const path = require("path");
 const http = require("http");
 const { spawn } = require("child_process");
 const readline = require("readline");
+const crypto = require("crypto");
 
 const FS_BASE =
   "https://firestore.googleapis.com/v1/projects/ee-offsite-simulation/databases/(default)/documents/runtime_v2_vaults";
@@ -61,6 +62,9 @@ function parseArgs(argv) {
     origin: process.env.RUNTIME_SITE_ORIGIN || DEFAULT_ORIGIN,
     port: Number(process.env.RUNTIME_PORT || 4402),
     cost: Number(process.env.RUNTIME_TURN_TOKENS || 2500),
+    bridgePort: Number(process.env.RUNTIME_BRIDGE_PORT || 8765),
+    clientId: "",
+    clientSecret: "",
     mode: "proxy",
     target: "",
     extraArgs: []
@@ -123,6 +127,34 @@ function parseArgs(argv) {
       out.mode = "codex";
     } else if (a === "--claude") {
       out.mode = "claude";
+    } else if (a === "--connect") {
+      out.mode = "connect";
+      out.target = argv[i + 1] && !argv[i + 1].startsWith("-") ? argv[++i].toLowerCase() : "whoop";
+    } else if (a.startsWith("--connect=")) {
+      out.mode = "connect";
+      out.target = a.slice(10).toLowerCase() || "whoop";
+    } else if (a === "--disconnect") {
+      out.mode = "disconnect";
+      out.target = argv[i + 1] && !argv[i + 1].startsWith("-") ? argv[++i].toLowerCase() : "all";
+    } else if (a.startsWith("--disconnect=")) {
+      out.mode = "disconnect";
+      out.target = a.slice(13).toLowerCase() || "all";
+    } else if (a === "--sync" || a === "--sync-fitness") {
+      out.mode = "sync";
+    } else if (a === "--bridge") {
+      out.mode = "bridge";
+    } else if (a === "--bridge-port" && argv[i + 1]) {
+      out.bridgePort = Number(argv[++i]);
+    } else if (a.startsWith("--bridge-port=")) {
+      out.bridgePort = Number(a.slice(14));
+    } else if (a === "--client-id" && argv[i + 1]) {
+      out.clientId = argv[++i];
+    } else if (a.startsWith("--client-id=")) {
+      out.clientId = a.slice(12);
+    } else if (a === "--client-secret" && argv[i + 1]) {
+      out.clientSecret = argv[++i];
+    } else if (a.startsWith("--client-secret=")) {
+      out.clientSecret = a.slice(16);
     } else if (a === "--mcp") {
       out.mode = "mcp";
     } else if (a === "--help" || a === "-h") {
@@ -132,7 +164,11 @@ function parseArgs(argv) {
     }
   }
 
-  if (out.mode === "status" && out.vaultId === "vlt_cli_default" && !process.env.RUNTIME_VAULT_ID) {
+  if (
+    (out.mode === "status" || out.mode === "connect" || out.mode === "sync" || out.mode === "bridge") &&
+    out.vaultId === "vlt_cli_default" &&
+    !process.env.RUNTIME_VAULT_ID
+  ) {
     try {
       const savedCfgPath = path.join(os.homedir(), ".runtime", "config.json");
       if (fs.existsSync(savedCfgPath)) {
@@ -144,7 +180,7 @@ function parseArgs(argv) {
     } catch (_) {}
   }
 
-  if (out.mode !== "uninstall" && out.mode !== "help") {
+  if (out.mode !== "uninstall" && out.mode !== "disconnect" && out.mode !== "help") {
     out.vaultId = validateSafeToken(out.vaultId, "vault ID", false);
     out.ft = validateSafeToken(out.ft, "field token", true);
     out.origin = normalizeOrigin(out.origin);
@@ -184,6 +220,8 @@ function fromFsFields(fields, updateTime) {
             .map((x) => (x && x.stringValue ? String(x.stringValue) : ""))
             .filter(Boolean)
         : [],
+    dailySyncJson: strField("dailySyncJson", "{}"),
+    fieldTokenHash: strField("fieldTokenHash", ""),
     resetEpoch: intField("resetEpoch", 0),
     updatedAt: intField("updatedAt", Date.now()),
     updateTime: updateTime || ""
@@ -453,6 +491,11 @@ async function runIdeHook(cfg) {
     console.log(JSON.stringify({ decision: "allow" }));
     process.exit(0);
   }
+
+  try {
+    const syncedSt = await autoSyncFitnessInHook(cfg, st);
+    if (syncedSt) st = syncedSt;
+  } catch (_) {}
 
   if (st.tokensAvailable <= 0) {
     const msg =
@@ -879,6 +922,8 @@ async function printVaultStatus(cfg) {
   console.log(`  TOKENS   : ${st.tokensAvailable.toLocaleString("en-US")} left · ~${turns} turns (${st.tokensBurned.toLocaleString("en-US")} burned)`);
   console.log(`  TANK     : [${fuelBar}]`);
   console.log(`  AGENTS   : ${agents.length ? agents.join(", ") : "none installed on this computer"}`);
+  const fitSummary = summarizeConnectedFitness();
+  console.log(`  FITNESS  : ${fitSummary}`);
   console.log(`  VAULT    : ${cfg.vaultId}`);
   console.log(`  WALK URL : ${walkUrl}`);
   console.log("└──────────────────────────────────────────────────────────────┘");
@@ -1570,14 +1615,991 @@ function runMcpServer(cfg) {
 }
 
 function printCliHelp() {
-  console.log("RUNTIME — Local Agent Blocker & Step Gate");
+  console.log("RUNTIME — Local Agent Blocker & Live Fitness Sync");
   console.log("");
-  console.log("Usage:");
-  console.log("  node gate.js --install <antigravity|claude|cursor|codex> --vault <ID> [--ft <TOKEN>]");
+  console.log("Agent Blocker:");
+  console.log("  node gate.js --install <auto|antigravity|claude|cursor|codex> --vault <ID> [--ft <TOKEN>]");
   console.log("  node gate.js --status [--vault <ID>]");
   console.log("  node gate.js --uninstall [antigravity|claude|cursor|codex]");
+  console.log("");
+  console.log("Live Fitness Connections (WHOOP v2, Fitbit / Google Health v4, Strava v3):");
+  console.log("  node gate.js --connect <whoop|fitbit|strava> [--vault <ID>]");
+  console.log("  node gate.js --sync [--vault <ID>]");
+  console.log("  node gate.js --bridge [--vault <ID>] [--bridge-port 8765]");
+  console.log("  node gate.js --disconnect [whoop|fitbit|strava|all]");
+  console.log("");
+  console.log("Proxy / MCP:");
   console.log("  node gate.js --vault <ID> [--port 4402]   (localhost OpenAI/Anthropic HTTP proxy)");
   console.log("  node gate.js --vault <ID> --mcp           (JSON-RPC stdio MCP server)");
+}
+
+/* ==========================================================================
+ * Live Fitness Connectors (WHOOP v2, Fitbit / Google Health v4, Strava v3)
+ * Tokens and client credentials stay strictly in ~/.runtime/fitness.json (0600)
+ * and are NEVER uploaded to Cloud Firestore.
+ * ========================================================================== */
+function getFitnessConfigPath() {
+  return path.join(os.homedir(), ".runtime", "fitness.json");
+}
+
+function readFitnessStore() {
+  const fp = getFitnessConfigPath();
+  if (!fs.existsSync(fp)) return { providers: {}, lastAutoSyncAt: 0 };
+  try {
+    const parsed = JSON.parse(fs.readFileSync(fp, "utf8"));
+    if (parsed && typeof parsed === "object") {
+      if (!parsed.providers || typeof parsed.providers !== "object") parsed.providers = {};
+      return parsed;
+    }
+  } catch (_) {}
+  return { providers: {}, lastAutoSyncAt: 0 };
+}
+
+function writeFitnessStore(store) {
+  const fp = getFitnessConfigPath();
+  fs.mkdirSync(path.dirname(fp), { recursive: true });
+  const tmp = fp + "." + process.pid + ".tmp";
+  fs.writeFileSync(tmp, JSON.stringify(store, null, 2) + "\n", { mode: 0o600 });
+  fs.renameSync(tmp, fp);
+  try {
+    fs.chmodSync(fp, 0o600);
+  } catch (_) {}
+}
+
+function normalizeProviderKey(raw) {
+  const s = String(raw || "whoop").toLowerCase().trim();
+  if (s === "whoop") return "whoop";
+  if (s === "fitbit" || s === "google" || s === "google-health" || s === "google_health") {
+    return "google";
+  }
+  if (s === "strava") return "strava";
+  throw new Error("Unsupported fitness provider '" + raw + "' (choose whoop, fitbit, or strava)");
+}
+
+function summarizeConnectedFitness() {
+  const store = readFitnessStore();
+  const entries = [];
+  for (const [k, v] of Object.entries(store.providers || {})) {
+    if (v && (v.accessToken || v.refreshToken)) {
+      const label = k === "google" ? "fitbit/google-health" : k;
+      const stepsTxt = typeof v.lastSteps === "number" ? `${v.lastSteps.toLocaleString("en-US")} steps` : "linked";
+      const extra = k === "whoop" && typeof v.lastStrain === "number" ? ` · ${v.lastStrain.toFixed(1)} strain` : "";
+      entries.push(`${label} (${stepsTxt}${extra})`);
+    }
+  }
+  return entries.length
+    ? entries.join(", ")
+    : "none linked (run: node ~/.runtime/gate.js --connect whoop)";
+}
+
+function localTodayParts() {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = d.getMonth() + 1;
+  const day = d.getDate();
+  const iso =
+    String(year) +
+    "-" +
+    String(month).padStart(2, "0") +
+    "-" +
+    String(day).padStart(2, "0");
+  const next = new Date(year, d.getMonth(), day + 1);
+  const startMidnightSec = Math.floor(new Date(year, d.getMonth(), day, 0, 0, 0, 0).getTime() / 1000);
+  return {
+    iso,
+    year,
+    month,
+    day,
+    nextYear: next.getFullYear(),
+    nextMonth: next.getMonth() + 1,
+    nextDay: next.getDate(),
+    startMidnightSec,
+    startMidnightMs: startMidnightSec * 1000
+  };
+}
+
+function pruneSyncMapLocal(map) {
+  const out = {};
+  if (!map || typeof map !== "object") return out;
+  const keys = Object.keys(map).sort().slice(-30);
+  for (const k of keys) {
+    const v = Math.max(0, Math.floor(Number(map[k]) || 0));
+    if (v > 0) out[k] = v;
+  }
+  return out;
+}
+
+async function syncDailyStepsToVault(vaultId, ft, totalTodaySteps, source) {
+  const cleanId = validateSafeToken(vaultId, "vault ID", false);
+  const reported = Math.max(0, Math.min(250000, Math.round(Number(totalTodaySteps) || 0)));
+  const cleanSource = String(source || "whoop_api").toLowerCase().replace(/[^a-z0-9_-]/g, "_");
+  const dayKey = localTodayParts().iso + ":" + cleanSource;
+
+  const cur = await getVaultState(cleanId);
+  if (cur.fieldTokenHash) {
+    const candidate = ft
+      ? crypto.createHash("sha256").update(String(ft), "utf8").digest("hex")
+      : "";
+    if (ft && candidate !== cur.fieldTokenHash) {
+      throw new Error("Field token mismatch for vault " + cleanId);
+    }
+  }
+
+  let syncMap = {};
+  try {
+    syncMap = pruneSyncMapLocal(JSON.parse(cur.dailySyncJson || "{}"));
+  } catch (_) {}
+
+  const prevSynced = Math.max(0, Math.floor(Number(syncMap[dayKey]) || 0));
+  const delta = Math.max(0, reported - prevSynced);
+  syncMap[dayKey] = Math.max(prevSynced, reported);
+
+  const nextStepsTotal = cur.stepsTotal + delta;
+  const rate = Math.max(1, cur.tokensPerStep || 25);
+  const tokensEarned = nextStepsTotal * rate;
+  const tokensAvailable = Math.max(0, tokensEarned - cur.tokensBurned);
+  const nextDevices = Array.from(new Set([].concat(cur.devices || [], [cleanSource])));
+
+  const updated = await patchVaultState(cleanId, {
+    stepsTotal: nextStepsTotal,
+    tokensEarned,
+    tokensAvailable,
+    devices: nextDevices,
+    dailySyncJson: JSON.stringify(syncMap),
+    updatedAt: Date.now()
+  });
+
+  return {
+    vaultState: updated,
+    reportedToday: reported,
+    stepsAdded: delta,
+    stepsTotal: updated.stepsTotal,
+    tokensAvailable: updated.tokensAvailable
+  };
+}
+
+function openUrlInBrowser(url) {
+  try {
+    const plat = process.platform;
+    if (plat === "darwin") {
+      const p = spawn("open", [url], { detached: true, stdio: "ignore" });
+      p.unref();
+    } else if (plat === "win32") {
+      const p = spawn("cmd", ["/c", "start", "", url], { detached: true, stdio: "ignore" });
+      p.unref();
+    } else {
+      const p = spawn("xdg-open", [url], { detached: true, stdio: "ignore" });
+      p.unref();
+    }
+  } catch (_) {}
+}
+
+function promptQuestion(rl, query) {
+  return new Promise((resolve) => rl.question(query, (ans) => resolve(String(ans || "").trim())));
+}
+
+async function ensureProviderCredentials(provider, cfg, store) {
+  const existing = (store.providers && store.providers[provider]) || {};
+  const envPrefix = provider === "google" ? "GOOGLE" : provider.toUpperCase();
+  let clientId = String(cfg.clientId || process.env[envPrefix + "_CLIENT_ID"] || existing.clientId || "").trim();
+  let clientSecret = String(
+    cfg.clientSecret || process.env[envPrefix + "_CLIENT_SECRET"] || existing.clientSecret || ""
+  ).trim();
+
+  if (clientId && (provider === "google" || clientSecret)) {
+    return { clientId, clientSecret };
+  }
+
+  if (!process.stdin.isTTY) {
+    throw new Error(
+      `Missing ${provider.toUpperCase()} OAuth credentials. Pass --client-id / --client-secret or run interactively in a terminal.`
+    );
+  }
+
+  const callbackUrl = `http://127.0.0.1:${cfg.bridgePort || 8765}/callback`;
+  console.log("");
+  if (provider === "whoop") {
+    console.log("WHOOP Official API Setup (one-time, takes ~30 seconds):");
+    console.log("  1. Open https://developer-dashboard.whoop.com and create a personal App");
+    console.log("  2. Add this Redirect URL: " + callbackUrl);
+    console.log("  3. Copy your Client ID and Client Secret below:");
+  } else if (provider === "strava") {
+    console.log("Strava API Setup (one-time, also pulls synced WHOOP / Garmin / Watch workouts):");
+    console.log("  1. Open https://www.strava.com/settings/api");
+    console.log("  2. Set Authorization Callback Domain to: 127.0.0.1");
+    console.log("  3. Copy your Client ID and Client Secret below:");
+  } else {
+    console.log("Fitbit & Google Health v4 API Setup (one-time):");
+    console.log("  1. Open https://console.cloud.google.com/apis/credentials (enable Google Health API)");
+    console.log("  2. Create OAuth Client ID (Web or Desktop) with Redirect URI: " + callbackUrl);
+    console.log("  3. Copy your Client ID (and Client Secret if issued) below:");
+  }
+  console.log("");
+
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    if (!clientId) {
+      clientId = await promptQuestion(rl, "  Client ID     : ");
+    }
+    if (!clientSecret) {
+      const label = provider === "google" ? "  Client Secret (optional for Desktop PKCE): " : "  Client Secret : ";
+      clientSecret = await promptQuestion(rl, label);
+    }
+  } finally {
+    rl.close();
+  }
+
+  if (!clientId || (provider !== "google" && !clientSecret)) {
+    throw new Error("Client ID and Client Secret are required to authorize " + provider.toUpperCase());
+  }
+  return { clientId, clientSecret };
+}
+
+function buildPkcePair() {
+  const verifier = crypto.randomBytes(32).toString("base64url");
+  const challenge = crypto.createHash("sha256").update(verifier).digest("base64url");
+  return { verifier, challenge };
+}
+
+function buildProviderAuthUrl(provider, clientId, redirectUri, state, pkceChallenge) {
+  if (provider === "whoop") {
+    const u = new URL("https://api.prod.whoop.com/oauth/oauth2/auth");
+    u.searchParams.set("client_id", clientId);
+    u.searchParams.set("redirect_uri", redirectUri);
+    u.searchParams.set("response_type", "code");
+    u.searchParams.set("scope", "offline read:cycles read:workout");
+    u.searchParams.set("state", state);
+    return u.toString();
+  }
+  if (provider === "strava") {
+    const u = new URL("https://www.strava.com/oauth/authorize");
+    u.searchParams.set("client_id", clientId);
+    u.searchParams.set("redirect_uri", redirectUri);
+    u.searchParams.set("response_type", "code");
+    u.searchParams.set("approval_prompt", "auto");
+    u.searchParams.set("scope", "activity:read_all");
+    u.searchParams.set("state", state);
+    return u.toString();
+  }
+  const u = new URL("https://accounts.google.com/o/oauth2/v2/auth");
+  u.searchParams.set("client_id", clientId);
+  u.searchParams.set("redirect_uri", redirectUri);
+  u.searchParams.set("response_type", "code");
+  u.searchParams.set("access_type", "offline");
+  u.searchParams.set("prompt", "consent");
+  u.searchParams.set("code_challenge", pkceChallenge);
+  u.searchParams.set("code_challenge_method", "S256");
+  u.searchParams.set(
+    "scope",
+    "https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly"
+  );
+  u.searchParams.set("state", state);
+  return u.toString();
+}
+
+async function exchangeProviderCode(provider, code, creds, redirectUri, pkceVerifier, timeoutMs = 8000) {
+  if (provider === "whoop") {
+    const body = new URLSearchParams({
+      grant_type: "authorization_code",
+      code,
+      client_id: creds.clientId,
+      client_secret: creds.clientSecret,
+      redirect_uri: redirectUri
+    });
+    const r = await fetchWithTimeout(
+      "https://api.prod.whoop.com/oauth/oauth2/token",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: body.toString()
+      },
+      timeoutMs
+    );
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.access_token) {
+      throw new Error("WHOOP token exchange failed (" + r.status + "): " + (j.error_description || j.error || "check Client ID/Secret & Redirect URL"));
+    }
+    return {
+      accessToken: j.access_token,
+      refreshToken: j.refresh_token || "",
+      expiresAt: Date.now() + Number(j.expires_in || 3600) * 1000
+    };
+  }
+
+  if (provider === "strava") {
+    const r = await fetchWithTimeout(
+      "https://www.strava.com/oauth/token",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          client_id: creds.clientId,
+          client_secret: creds.clientSecret,
+          code,
+          grant_type: "authorization_code"
+        })
+      },
+      timeoutMs
+    );
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.access_token) {
+      throw new Error("Strava token exchange failed (" + r.status + "): " + (j.message || "check Client ID/Secret"));
+    }
+    return {
+      accessToken: j.access_token,
+      refreshToken: j.refresh_token || "",
+      expiresAt: j.expires_at ? Number(j.expires_at) * 1000 : Date.now() + Number(j.expires_in || 3600) * 1000
+    };
+  }
+
+  const params = {
+    grant_type: "authorization_code",
+    code,
+    client_id: creds.clientId,
+    redirect_uri: redirectUri,
+    code_verifier: pkceVerifier
+  };
+  if (creds.clientSecret) params.client_secret = creds.clientSecret;
+  const r = await fetchWithTimeout(
+    "https://oauth2.googleapis.com/token",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams(params).toString()
+    },
+    timeoutMs
+  );
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || !j.access_token) {
+    throw new Error("Google Health token exchange failed (" + r.status + "): " + (j.error_description || j.error || "check credentials"));
+  }
+  return {
+    accessToken: j.access_token,
+    refreshToken: j.refresh_token || "",
+    expiresAt: Date.now() + Number(j.expires_in || 3600) * 1000
+  };
+}
+
+async function ensureFreshAccessToken(provider, entry, store, timeoutMs = 4500) {
+  if (!entry) throw new Error(provider + " is not connected");
+  const now = Date.now();
+  if (entry.accessToken && entry.expiresAt && now < Number(entry.expiresAt) - 60000) {
+    return entry.accessToken;
+  }
+  if (!entry.refreshToken) {
+    if (entry.accessToken) return entry.accessToken;
+    throw new Error(provider + " session expired -- reconnect with --connect " + provider);
+  }
+
+  if (provider === "whoop") {
+    const body = new URLSearchParams({
+      grant_type: "refresh_token",
+      refresh_token: entry.refreshToken,
+      client_id: entry.clientId,
+      client_secret: entry.clientSecret,
+      scope: "offline"
+    });
+    const r = await fetchWithTimeout(
+      "https://api.prod.whoop.com/oauth/oauth2/token",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: body.toString()
+      },
+      timeoutMs
+    );
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.access_token) {
+      throw new Error("WHOOP token refresh HTTP " + r.status);
+    }
+    entry.accessToken = j.access_token;
+    if (j.refresh_token) entry.refreshToken = j.refresh_token;
+    entry.expiresAt = Date.now() + Number(j.expires_in || 3600) * 1000;
+    store.providers[provider] = entry;
+    writeFitnessStore(store);
+    return entry.accessToken;
+  }
+
+  if (provider === "strava") {
+    const r = await fetchWithTimeout(
+      "https://www.strava.com/oauth/token",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          client_id: entry.clientId,
+          client_secret: entry.clientSecret,
+          refresh_token: entry.refreshToken,
+          grant_type: "refresh_token"
+        })
+      },
+      timeoutMs
+    );
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.access_token) {
+      throw new Error("Strava token refresh HTTP " + r.status);
+    }
+    entry.accessToken = j.access_token;
+    if (j.refresh_token) entry.refreshToken = j.refresh_token;
+    entry.expiresAt = j.expires_at ? Number(j.expires_at) * 1000 : Date.now() + Number(j.expires_in || 3600) * 1000;
+    store.providers[provider] = entry;
+    writeFitnessStore(store);
+    return entry.accessToken;
+  }
+
+  const params = {
+    grant_type: "refresh_token",
+    refresh_token: entry.refreshToken,
+    client_id: entry.clientId
+  };
+  if (entry.clientSecret) params.client_secret = entry.clientSecret;
+  const r = await fetchWithTimeout(
+    "https://oauth2.googleapis.com/token",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams(params).toString()
+    },
+    timeoutMs
+  );
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || !j.access_token) {
+    throw new Error("Google Health token refresh HTTP " + r.status);
+  }
+  entry.accessToken = j.access_token;
+  if (j.refresh_token) entry.refreshToken = j.refresh_token;
+  entry.expiresAt = Date.now() + Number(j.expires_in || 3600) * 1000;
+  store.providers[provider] = entry;
+  writeFitnessStore(store);
+  return entry.accessToken;
+}
+
+async function fetchTodayProviderMetrics(provider, accessToken, timeoutMs = 4500) {
+  const today = localTodayParts();
+
+  if (provider === "whoop") {
+    const [cycRes, wkRes] = await Promise.all([
+      fetchWithTimeout(
+        "https://api.prod.whoop.com/developer/v2/cycle?limit=3",
+        { headers: { Authorization: "Bearer " + accessToken } },
+        timeoutMs
+      ),
+      fetchWithTimeout(
+        "https://api.prod.whoop.com/developer/v2/activity/workout?limit=12",
+        { headers: { Authorization: "Bearer " + accessToken } },
+        timeoutMs
+      ).catch(() => null)
+    ]);
+    if (!cycRes.ok) throw new Error("WHOOP cycle API HTTP " + cycRes.status);
+    const cycJson = await cycRes.json().catch(() => ({}));
+    const records = Array.isArray(cycJson.records) ? cycJson.records : [];
+    const currentCycle = records.find((c) => !c.end) || records[0] || null;
+    const cycleSteps =
+      currentCycle && typeof currentCycle.step_count === "number" && currentCycle.step_count > 0
+        ? Math.round(currentCycle.step_count)
+        : 0;
+    const strain =
+      currentCycle && currentCycle.score && typeof currentCycle.score.strain === "number"
+        ? Number(currentCycle.score.strain)
+        : 0;
+
+    let allWorkoutKcal = 0;
+    let nonStepWorkoutKcal = 0;
+    if (wkRes && wkRes.ok) {
+      const wkJson = await wkRes.json().catch(() => ({}));
+      const wkRecords = Array.isArray(wkJson.records) ? wkJson.records : [];
+      for (const w of wkRecords) {
+        const startMs = w && w.start ? Date.parse(w.start) : 0;
+        if (!startMs || startMs < today.startMidnightMs) continue;
+        const kj = w.score && typeof w.score.kilojoule === "number" ? w.score.kilojoule : 0;
+        const kcal = kj > 0 ? kj / 4.184 : 0;
+        allWorkoutKcal += kcal;
+        const sport = String(w.sport_name || "").toLowerCase();
+        const isStepSport = /walk|run|hike|ruck|jog|treadmill/.test(sport);
+        if (!isStepSport) nonStepWorkoutKcal += kcal;
+      }
+    }
+
+    const reportedSteps = Math.max(
+      cycleSteps + Math.round(nonStepWorkoutKcal * 20),
+      Math.round(allWorkoutKcal * 20)
+    );
+    return {
+      source: "whoop_api",
+      stepsEquivalent: reportedSteps,
+      rawSteps: cycleSteps,
+      workoutCalories: Math.round(allWorkoutKcal),
+      strain
+    };
+  }
+
+  if (provider === "strava") {
+    const r = await fetchWithTimeout(
+      `https://www.strava.com/api/v3/athlete/activities?after=${today.startMidnightSec}&per_page=30`,
+      { headers: { Authorization: "Bearer " + accessToken } },
+      timeoutMs
+    );
+    if (!r.ok) throw new Error("Strava activities API HTTP " + r.status);
+    const list = await r.json().catch(() => []);
+    let totalStepsEq = 0;
+    let totalKcal = 0;
+    for (const act of Array.isArray(list) ? list : []) {
+      const sport = String(act.sport_type || act.type || "").toLowerCase();
+      const distM = Number(act.distance || 0);
+      const kj = Number(act.kilojoules || 0);
+      const cal = Number(act.calories || 0);
+      const movingMin = Number(act.moving_time || 0) / 60;
+      const avgHr = Number(act.average_heartrate || 0);
+      let actSteps = 0;
+      if (/walk|run|hike|trail/.test(sport) && distM > 0) {
+        actSteps = Math.round(distM * 1.31);
+      }
+      const activeKcal =
+        cal > 0
+          ? cal
+          : kj > 0
+            ? kj
+            : avgHr >= 95 && movingMin > 0
+              ? Math.max(1, (avgHr - 80) * 0.14 * movingMin)
+              : movingMin > 0 && !/walk|run|hike/.test(sport)
+                ? movingMin * 5
+                : 0;
+      totalKcal += activeKcal;
+      actSteps = Math.max(actSteps, Math.round(activeKcal * 20));
+      totalStepsEq += actSteps;
+    }
+    return {
+      source: "strava_api",
+      stepsEquivalent: totalStepsEq,
+      rawSteps: totalStepsEq,
+      workoutCalories: Math.round(totalKcal),
+      strain: 0
+    };
+  }
+
+  // Google Health API v4 (Fitbit, Pixel Watch, Google Health)
+  const rangeBody = JSON.stringify({
+    windowSizeDays: 1,
+    range: {
+      start: { date: { year: today.year, month: today.month, day: today.day } },
+      end: { date: { year: today.nextYear, month: today.nextMonth, day: today.nextDay } }
+    }
+  });
+  const [stepsRes, calRes] = await Promise.all([
+    fetchWithTimeout(
+      "https://health.googleapis.com/v4/users/me/dataTypes/steps/dataPoints:dailyRollUp",
+      {
+        method: "POST",
+        headers: {
+          Authorization: "Bearer " + accessToken,
+          "Content-Type": "application/json"
+        },
+        body: rangeBody
+      },
+      timeoutMs
+    ),
+    fetchWithTimeout(
+      "https://health.googleapis.com/v4/users/me/dataTypes/active-energy-burned/dataPoints:dailyRollUp",
+      {
+        method: "POST",
+        headers: {
+          Authorization: "Bearer " + accessToken,
+          "Content-Type": "application/json"
+        },
+        body: rangeBody
+      },
+      timeoutMs
+    ).catch(() => null)
+  ]);
+  if (!stepsRes.ok) throw new Error("Google Health v4 steps API HTTP " + stepsRes.status);
+  const stepsJson = await stepsRes.json().catch(() => ({}));
+  const roll = Array.isArray(stepsJson.rollupDataPoints) ? stepsJson.rollupDataPoints[0] : null;
+  const countSum = roll && roll.steps && roll.steps.countSum ? Number(roll.steps.countSum) : 0;
+
+  let activeKcal = 0;
+  if (calRes && calRes.ok) {
+    const calJson = await calRes.json().catch(() => ({}));
+    const calRoll = Array.isArray(calJson.rollupDataPoints) ? calJson.rollupDataPoints[0] : null;
+    if (calRoll && calRoll.activeEnergyBurned && typeof calRoll.activeEnergyBurned.kcalSum === "number") {
+      activeKcal = calRoll.activeEnergyBurned.kcalSum;
+    }
+  }
+  const stepsEq = Math.max(Math.round(countSum), Math.round(activeKcal * 20));
+  return {
+    source: "google_health",
+    stepsEquivalent: stepsEq,
+    rawSteps: Math.round(countSum),
+    workoutCalories: Math.round(activeKcal),
+    strain: 0
+  };
+}
+
+async function syncAllConnectedFitness(cfg, opts = {}) {
+  const store = readFitnessStore();
+  const providers = Object.keys(store.providers || {}).filter((k) => {
+    const p = store.providers[k];
+    return p && (p.accessToken || p.refreshToken);
+  });
+  if (providers.length === 0) {
+    return { synced: false, results: [], vaultState: null };
+  }
+
+  const timeoutMs = opts.timeoutMs || 5000;
+  const results = [];
+  let latestVaultState = null;
+
+  for (const prov of providers) {
+    try {
+      const entry = store.providers[prov];
+      const token = await ensureFreshAccessToken(prov, entry, store, timeoutMs);
+      const metrics = await fetchTodayProviderMetrics(prov, token, timeoutMs);
+      const syncOut = await syncDailyStepsToVault(
+        cfg.vaultId,
+        cfg.ft,
+        metrics.stepsEquivalent,
+        metrics.source
+      );
+      latestVaultState = syncOut.vaultState;
+      entry.lastSteps = metrics.stepsEquivalent;
+      entry.lastStrain = metrics.strain || 0;
+      entry.lastCalories = metrics.workoutCalories || 0;
+      entry.lastSyncAt = Date.now();
+      store.providers[prov] = entry;
+      results.push({
+        provider: prov,
+        ok: true,
+        reportedToday: metrics.stepsEquivalent,
+        stepsAdded: syncOut.stepsAdded,
+        strain: metrics.strain || 0,
+        workoutCalories: metrics.workoutCalories || 0
+      });
+    } catch (err) {
+      results.push({
+        provider: prov,
+        ok: false,
+        error: String(err && err.message ? err.message : err)
+      });
+    }
+  }
+
+  store.lastAutoSyncAt = Date.now();
+  writeFitnessStore(store);
+  return { synced: true, results, vaultState: latestVaultState };
+}
+
+async function autoSyncFitnessInHook(cfg, st) {
+  const store = readFitnessStore();
+  const hasAny = Object.values(store.providers || {}).some(
+    (p) => p && (p.accessToken || p.refreshToken)
+  );
+  if (!hasAny) return null;
+  const stale = Date.now() - Number(store.lastAutoSyncAt || 0) > 180000;
+  if (st.tokensAvailable > 0 && !stale) return null;
+  const out = await syncAllConnectedFitness(cfg, { timeoutMs: 2600 });
+  return out && out.vaultState ? out.vaultState : null;
+}
+
+async function connectFitnessProviderInteractive(cfg) {
+  const provider = normalizeProviderKey(cfg.target || "whoop");
+  const store = readFitnessStore();
+  const creds = await ensureProviderCredentials(provider, cfg, store);
+  const port = Number(cfg.bridgePort || 8765);
+  const redirectUri = `http://127.0.0.1:${port}/callback`;
+  const state = crypto.randomBytes(8).toString("hex");
+  const pkce = buildPkcePair();
+  const authUrl = buildProviderAuthUrl(provider, creds.clientId, redirectUri, state, pkce.challenge);
+
+  const codePromise = new Promise((resolve, reject) => {
+    const srv = http.createServer((req, res) => {
+      try {
+        const u = new URL(req.url || "/", `http://127.0.0.1:${port}`);
+        if (u.pathname !== "/callback") {
+          res.writeHead(404, { "Content-Type": "text/plain" });
+          res.end("Not found");
+          return;
+        }
+        const errParam = u.searchParams.get("error");
+        const gotState = u.searchParams.get("state");
+        const code = u.searchParams.get("code");
+        if (errParam) {
+          res.writeHead(400, { "Content-Type": "text/html; charset=utf-8" });
+          res.end("<h2>Authorization cancelled</h2><p>Return to your terminal.</p>");
+          srv.close();
+          reject(new Error("Authorization denied: " + errParam));
+          return;
+        }
+        if (!code || gotState !== state) {
+          res.writeHead(400, { "Content-Type": "text/html; charset=utf-8" });
+          res.end("<h2>Invalid callback state</h2><p>Return to your terminal and try again.</p>");
+          return;
+        }
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(
+          "<!doctype html><html><body style='background:#000;color:#ff3b14;font-family:monospace;padding:40px;text-align:center'>" +
+            "<h1>RUNTIME CONNECTED</h1><p>Live fitness sync is active. You can close this tab.</p></body></html>"
+        );
+        srv.close();
+        resolve(code);
+      } catch (e) {
+        srv.close();
+        reject(e);
+      }
+    });
+    srv.on("error", (err) => {
+      reject(
+        new Error(
+          `Could not listen on 127.0.0.1:${port} (${err.message}). Close any other process on port ${port} or pass --bridge-port.`
+        )
+      );
+    });
+    srv.listen(port, "127.0.0.1");
+  });
+
+  console.log("");
+  console.log(`Opening ${provider.toUpperCase()} authorization in your browser...`);
+  console.log(`If it doesn't open automatically, open this link:\n  ${authUrl}`);
+  openUrlInBrowser(authUrl);
+
+  const code = await codePromise;
+  const tokens = await exchangeProviderCode(provider, code, creds, redirectUri, pkce.verifier);
+  store.providers[provider] = {
+    clientId: creds.clientId,
+    clientSecret: creds.clientSecret || "",
+    accessToken: tokens.accessToken,
+    refreshToken: tokens.refreshToken || "",
+    expiresAt: tokens.expiresAt,
+    connectedAt: Date.now()
+  };
+  writeFitnessStore(store);
+
+  const out = await syncAllConnectedFitness(cfg, { timeoutMs: 8000 });
+  const r = (out.results || []).find((x) => x.provider === provider) || {};
+  console.log("");
+  console.log("┌──────────────────────────────────────────────────────────────┐");
+  console.log(`│ RUNTIME -- ${provider.toUpperCase()} LIVE SYNC CONNECTED`.padEnd(63, " ") + "│");
+  console.log("├──────────────────────────────────────────────────────────────┤");
+  if (r.ok) {
+    console.log(`  Today     : ${(r.reportedToday || 0).toLocaleString("en-US")} steps equivalent (+${(r.stepsAdded || 0).toLocaleString("en-US")} newly unlocked)`);
+    if (r.strain) console.log(`  Strain    : ${r.strain.toFixed(1)}`);
+  } else if (r.error) {
+    console.log(`  Sync note : ${r.error}`);
+  }
+  console.log(`  Auto-sync : Pulls fresh data automatically when you prompt your AI`);
+  console.log(`  Manual    : node ~/.runtime/gate.js --sync`);
+  console.log(`  Web UI    : node ~/.runtime/gate.js --bridge`);
+  console.log("└──────────────────────────────────────────────────────────────┘");
+}
+
+function disconnectFitnessProvider(target) {
+  const store = readFitnessStore();
+  const clean = String(target || "all").toLowerCase().trim();
+  if (!clean || clean === "all") {
+    store.providers = {};
+    writeFitnessStore(store);
+    console.log("Disconnected all saved fitness accounts from ~/.runtime/fitness.json.");
+    return;
+  }
+  const prov = normalizeProviderKey(clean);
+  if (store.providers) delete store.providers[prov];
+  writeFitnessStore(store);
+  console.log(`Disconnected ${prov} from ~/.runtime/fitness.json.`);
+}
+
+async function startFitnessBridgeServer(cfg) {
+  const port =
+    cfg.bridgePort !== undefined && cfg.bridgePort !== null && !Number.isNaN(Number(cfg.bridgePort))
+      ? Number(cfg.bridgePort)
+      : 8765;
+  let pendingOAuth = null;
+
+  const setCors = (req, res) => {
+    const origin = String(req.headers.origin || "*");
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Vary", "Origin");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    res.setHeader("Access-Control-Allow-Private-Network", "true");
+  };
+
+  const isTrustedBrowserOrigin = (origin) => {
+    if (!origin) return true;
+    return (
+      origin === "https://runtime.jackcolley.com" ||
+      origin === "https://runtime-jackcolley.web.app" ||
+      /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)
+    );
+  };
+
+  const server = http.createServer(async (req, res) => {
+    setCors(req, res);
+    if (req.method === "OPTIONS") {
+      res.writeHead(204);
+      res.end();
+      return;
+    }
+
+    const u = new URL(req.url || "/", `http://127.0.0.1:${port}`);
+    if (req.method === "GET" && u.pathname === "/status") {
+      const store = readFitnessStore();
+      const pub = {};
+      for (const [k, v] of Object.entries(store.providers || {})) {
+        if (v && (v.accessToken || v.refreshToken)) {
+          pub[k] = {
+            connected: true,
+            lastSteps: v.lastSteps || 0,
+            lastStrain: v.lastStrain || 0,
+            lastCalories: v.lastCalories || 0,
+            lastSyncAt: v.lastSyncAt || 0
+          };
+        }
+      }
+      res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
+      res.end(JSON.stringify({ ok: true, bridge: true, vaultId: cfg.vaultId, providers: pub }));
+      return;
+    }
+
+    if (req.method === "POST" && u.pathname === "/sync") {
+      if (!isTrustedBrowserOrigin(String(req.headers.origin || ""))) {
+        res.writeHead(403, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ok: false, error: "Untrusted origin" }));
+        return;
+      }
+      let bodyObj = {};
+      try {
+        const chunks = [];
+        for await (const ch of req) chunks.push(ch);
+        const raw = Buffer.concat(chunks).toString("utf8");
+        if (raw.trim()) bodyObj = JSON.parse(raw);
+      } catch (_) {}
+      const syncCfg = Object.assign({}, cfg, {
+        vaultId: bodyObj.vaultId ? validateSafeToken(bodyObj.vaultId, "vault ID", false) : cfg.vaultId,
+        ft: bodyObj.ft ? validateSafeToken(bodyObj.ft, "field token", true) : cfg.ft
+      });
+      const out = await syncAllConnectedFitness(syncCfg, { timeoutMs: 7000 });
+      res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
+      res.end(
+        JSON.stringify({
+          ok: true,
+          synced: out.synced,
+          results: out.results,
+          stepsTotal: out.vaultState ? out.vaultState.stepsTotal : undefined,
+          tokensAvailable: out.vaultState ? out.vaultState.tokensAvailable : undefined
+        })
+      );
+      return;
+    }
+
+    if (req.method === "POST" && u.pathname === "/connect") {
+      if (!isTrustedBrowserOrigin(String(req.headers.origin || ""))) {
+        res.writeHead(403, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ok: false, error: "Untrusted origin" }));
+        return;
+      }
+      try {
+        const chunks = [];
+        for await (const ch of req) chunks.push(ch);
+        const body = JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}");
+        const provider = normalizeProviderKey(body.provider || "whoop");
+        const store = readFitnessStore();
+        const prev = (store.providers && store.providers[provider]) || {};
+        const clientId = String(body.clientId || prev.clientId || "").trim();
+        const clientSecret = String(body.clientSecret || prev.clientSecret || "").trim();
+        if (!clientId || (provider !== "google" && !clientSecret)) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ ok: false, needsCredentials: true, callbackUrl: `http://127.0.0.1:${port}/callback` }));
+          return;
+        }
+        const redirectUri = `http://127.0.0.1:${port}/callback`;
+        const state = crypto.randomBytes(8).toString("hex");
+        const pkce = buildPkcePair();
+        pendingOAuth = {
+          provider,
+          clientId,
+          clientSecret,
+          redirectUri,
+          state,
+          pkceVerifier: pkce.verifier,
+          vaultId: body.vaultId ? validateSafeToken(body.vaultId, "vault ID", false) : cfg.vaultId,
+          ft: body.ft ? validateSafeToken(body.ft, "field token", true) : cfg.ft,
+          returnOrigin: isTrustedBrowserOrigin(String(req.headers.origin || ""))
+            ? String(req.headers.origin || DEFAULT_ORIGIN)
+            : DEFAULT_ORIGIN
+        };
+        const authUrl = buildProviderAuthUrl(provider, clientId, redirectUri, state, pkce.challenge);
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ok: true, authUrl }));
+      } catch (err) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ok: false, error: String(err.message || err) }));
+      }
+      return;
+    }
+
+    if (req.method === "GET" && u.pathname === "/callback") {
+      if (!pendingOAuth) {
+        res.writeHead(400, { "Content-Type": "text/plain" });
+        res.end("No active OAuth request.");
+        return;
+      }
+      const code = u.searchParams.get("code");
+      const gotState = u.searchParams.get("state");
+      if (!code || gotState !== pendingOAuth.state) {
+        res.writeHead(400, { "Content-Type": "text/plain" });
+        res.end("Invalid OAuth callback state.");
+        return;
+      }
+      try {
+        const cur = pendingOAuth;
+        pendingOAuth = null;
+        const tokens = await exchangeProviderCode(
+          cur.provider,
+          code,
+          { clientId: cur.clientId, clientSecret: cur.clientSecret },
+          cur.redirectUri,
+          cur.pkceVerifier
+        );
+        const store = readFitnessStore();
+        store.providers[cur.provider] = {
+          clientId: cur.clientId,
+          clientSecret: cur.clientSecret,
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken || "",
+          expiresAt: tokens.expiresAt,
+          connectedAt: Date.now()
+        };
+        writeFitnessStore(store);
+        await syncAllConnectedFitness(
+          Object.assign({}, cfg, { vaultId: cur.vaultId, ft: cur.ft }),
+          { timeoutMs: 7000 }
+        );
+        res.writeHead(302, { Location: cur.returnOrigin.replace(/\/+$/, "") + "/?bridge_synced=" + cur.provider + "#walk" });
+        res.end();
+      } catch (err) {
+        res.writeHead(500, { "Content-Type": "text/plain" });
+        res.end("OAuth error: " + String(err.message || err));
+      }
+      return;
+    }
+
+    res.writeHead(404, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ ok: false, error: "Not found" }));
+  });
+
+  await new Promise((resolve, reject) => {
+    server.on("error", reject);
+    server.listen(port, "127.0.0.1", resolve);
+  });
+
+  // Auto-sync every 5 minutes in background while bridge runs
+  const timer = setInterval(() => {
+    syncAllConnectedFitness(cfg, { timeoutMs: 6000 }).catch(() => {});
+  }, 300000);
+  if (typeof timer.unref === "function") timer.unref();
+
+  const boundPort = server.address() && server.address().port ? server.address().port : port;
+  console.log(`RUNTIME local fitness bridge active on http://127.0.0.1:${boundPort} (Vault: ${cfg.vaultId})`);
+  console.log(`Connected: ${summarizeConnectedFitness()}`);
+  return { server, port: boundPort };
 }
 
 async function main() {
@@ -1600,6 +2622,35 @@ async function main() {
   }
   if (cfg.mode === "uninstall") {
     uninstallIdeHooks(cfg.target);
+    return;
+  }
+  if (cfg.mode === "connect") {
+    await connectFitnessProviderInteractive(cfg);
+    return;
+  }
+  if (cfg.mode === "disconnect") {
+    disconnectFitnessProvider(cfg.target);
+    return;
+  }
+  if (cfg.mode === "sync") {
+    const out = await syncAllConnectedFitness(cfg, { timeoutMs: 8000 });
+    if (!out.synced) {
+      console.log("No fitness accounts linked yet. Run: node ~/.runtime/gate.js --connect whoop");
+      return;
+    }
+    for (const r of out.results) {
+      if (r.ok) {
+        console.log(
+          `SYNCED ${r.provider.toUpperCase()}: ${r.reportedToday.toLocaleString("en-US")} steps today (+${r.stepsAdded.toLocaleString("en-US")} newly unlocked)`
+        );
+      } else {
+        console.error(`SYNC ERROR (${r.provider}): ${r.error}`);
+      }
+    }
+    return;
+  }
+  if (cfg.mode === "bridge") {
+    await startFitnessBridgeServer(cfg);
     return;
   }
   if (cfg.mode === "mcp") {
@@ -1665,7 +2716,7 @@ async function main() {
   );
 }
 
-if (require.main === module || !require.main) {
+if (require.main === module || module.id === "[stdin]") {
   main().catch((err) => {
     console.error("RUNTIME gate error:", err.message || err);
     process.exit(1);
@@ -1674,6 +2725,9 @@ if (require.main === module || !require.main) {
 
 module.exports = {
   startProxyServer,
+  startFitnessBridgeServer,
+  syncAllConnectedFitness,
+  fetchTodayProviderMetrics,
   parseArgs,
   installIdeHook,
   uninstallIdeHooks,

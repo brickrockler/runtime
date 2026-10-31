@@ -1825,6 +1825,10 @@
     }
     if (phonePanel) phonePanel.hidden = walkActiveMode !== "phone";
     if (healthPanel) healthPanel.hidden = walkActiveMode !== "health";
+    if (walkActiveMode === "health") {
+      refreshLiveFitnessConnectorUi();
+      probeLocalFitnessBridge();
+    }
     syncStickyDockVisibility();
   }
 
@@ -2185,7 +2189,7 @@
     if (ocrScriptPromise) return ocrScriptPromise;
     ocrScriptPromise = new Promise((resolve, reject) => {
       const s = document.createElement("script");
-      s.src = "/ocr/tesseract.min.js?v=24";
+      s.src = "/ocr/tesseract.min.js?v=25";
       s.async = true;
       s.onload = () => {
         if (window.Tesseract) resolve(window.Tesseract);
@@ -2216,6 +2220,910 @@
       throw err;
     });
     return ocrWorkerPromise;
+  }
+
+  /* ---------------- v25 Live Web Bluetooth (WHOOP / Watch) + Cloud API Sync ---------------- */
+  const LS_FITNESS_OAUTH_KEY = "rt_v2_fitness_oauth";
+  const LOCAL_BRIDGE_BASE = "http://127.0.0.1:8765";
+  const DEFAULT_OAUTH_CLIENTS = {
+    google: "",
+    strava: ""
+  };
+
+  let bleDevice = null;
+  let bleServer = null;
+  let bleHrChar = null;
+  let bleRscChar = null;
+  let bleLastTickMs = 0;
+  let bleCurrentBpm = 0;
+  let bleCurrentSpm = 0;
+  let bleFractionalSteps = 0;
+  let bleSessionStepsCredited = 0;
+  let bleFlushTimer = null;
+  let bleManualDisconnect = false;
+
+  let activeOAuthDrawerProvider = "";
+  let localBridgeState = { reachable: false, providers: {} };
+  let autoSyncedBrowserFitnessOnce = false;
+
+  function loadFitnessOAuthStore() {
+    try {
+      const raw = localStorage.getItem(LS_FITNESS_OAUTH_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object") {
+          if (!parsed.providers || typeof parsed.providers !== "object") parsed.providers = {};
+          return parsed;
+        }
+      }
+    } catch (_) {}
+    return { providers: {}, pending: null };
+  }
+
+  function saveFitnessOAuthStore(store) {
+    try {
+      localStorage.setItem(LS_FITNESS_OAUTH_KEY, JSON.stringify(store || { providers: {} }));
+    } catch (_) {}
+  }
+
+  function getEffectiveVaultTarget() {
+    const { pairVaultId, syncVaultId, fieldToken } = getUrlSyncAndPairParams();
+    const st = window.RuntimeGate ? window.RuntimeGate.getState() : { vaultId: "", fieldToken: "" };
+    return {
+      vaultId: pairVaultId || syncVaultId || st.vaultId || "",
+      fieldToken: fieldToken || st.fieldToken || ""
+    };
+  }
+
+  function buildWhoopCliCommand() {
+    const { vaultId, fieldToken } = getEffectiveVaultTarget();
+    const origin = window.location.origin;
+    const ftFlag = fieldToken ? " --ft " + fieldToken : "";
+    const vFlag = vaultId ? " --vault " + vaultId : "";
+    return "curl -fsSL " + origin + "/gate.js | node - --connect whoop" + vFlag + ftFlag;
+  }
+
+  function parseHeartRateBlePacket(dataView) {
+    if (!dataView || dataView.byteLength < 2) return 0;
+    const flags = dataView.getUint8(0);
+    const is16Bit = (flags & 0x01) !== 0;
+    if (is16Bit && dataView.byteLength >= 3) {
+      return dataView.getUint16(1, true);
+    }
+    return dataView.getUint8(1);
+  }
+
+  function parseRscBlePacket(dataView) {
+    if (!dataView || dataView.byteLength < 4) return { speedMps: 0, cadenceSpm: 0 };
+    const speedRaw = dataView.getUint16(1, true);
+    const cadence = dataView.getUint8(3);
+    return { speedMps: speedRaw / 256, cadenceSpm: cadence };
+  }
+
+  function accumulateBleEffort() {
+    const now = Date.now();
+    if (!bleLastTickMs) {
+      bleLastTickMs = now;
+      return;
+    }
+    const elapsedMin = Math.max(0, Math.min(0.5, (now - bleLastTickMs) / 60000));
+    bleLastTickMs = now;
+    if (elapsedMin <= 0) return;
+
+    let hrStepsPerMin = 0;
+    if (bleCurrentBpm >= 90) {
+      const activeKcalPerMin = Math.max(0.8, (bleCurrentBpm - 80) * 0.14);
+      hrStepsPerMin = activeKcalPerMin * 20;
+    }
+
+    let rscStepsPerMin = 0;
+    if (bleCurrentSpm > 0) {
+      rscStepsPerMin = bleCurrentSpm;
+    }
+
+    const bestRate = Math.max(hrStepsPerMin, rscStepsPerMin);
+    if (bestRate > 0) {
+      bleFractionalSteps += bestRate * elapsedMin;
+    }
+    updateBleReadoutDom();
+  }
+
+  function updateBleReadoutDom() {
+    const box = $("walk-ble-readout");
+    const nameEl = $("walk-ble-device-name");
+    const bpmEl = $("walk-ble-bpm");
+    const earnedEl = $("walk-ble-earned");
+    if (!box) return;
+    const connected = Boolean(bleDevice && bleDevice.gatt && bleDevice.gatt.connected);
+    box.hidden = !connected;
+    if (!connected) return;
+    if (nameEl) {
+      nameEl.textContent = (bleDevice && bleDevice.name ? bleDevice.name : "STRAP LIVE").slice(0, 22);
+    }
+    if (bpmEl) {
+      if (bleCurrentBpm > 0) {
+        bpmEl.textContent = bleCurrentBpm + " BPM";
+      } else if (bleCurrentSpm > 0) {
+        bpmEl.textContent = bleCurrentSpm + " SPM";
+      } else {
+        bpmEl.textContent = "WAITING...";
+      }
+    }
+    if (earnedEl) {
+      const pending = Math.floor(bleFractionalSteps);
+      earnedEl.textContent = "+" + formatInt(bleSessionStepsCredited + pending) + " STEPS";
+    }
+  }
+
+  async function flushBleStepsToVault() {
+    accumulateBleEffort();
+    const whole = Math.floor(bleFractionalSteps);
+    if (whole < 5) return;
+    bleFractionalSteps -= whole;
+    try {
+      const outcome = await creditParsedEffort({
+        metric: "steps",
+        rawValue: whole,
+        stepsEquivalent: whole,
+        mode: "workout",
+        source: "ble_strap",
+        summary: "BLUETOOTH LIVE (" + (bleCurrentBpm ? bleCurrentBpm + " BPM" : bleCurrentSpm + " SPM") + ")"
+      });
+      if (outcome && outcome.stepsAdded > 0) {
+        bleSessionStepsCredited += outcome.stepsAdded;
+      }
+      updateBleReadoutDom();
+    } catch (_) {
+      bleFractionalSteps += whole;
+    }
+  }
+
+  async function attachBleCharacteristics(gattServer) {
+    bleServer = gattServer;
+    let boundAny = false;
+
+    try {
+      const hrSvc = await gattServer.getPrimaryService("heart_rate");
+      const hrChar = await hrSvc.getCharacteristic("heart_rate_measurement");
+      bleHrChar = hrChar;
+      await hrChar.startNotifications();
+      hrChar.addEventListener("characteristicvaluechanged", (ev) => {
+        const dv = ev && ev.target ? ev.target.value : null;
+        const bpm = parseHeartRateBlePacket(dv);
+        if (bpm > 25 && bpm < 245) {
+          accumulateBleEffort();
+          bleCurrentBpm = bpm;
+          updateBleReadoutDom();
+          if ($("walk-ble-status")) {
+            $("walk-ble-status").textContent =
+              bpm >= 90
+                ? "LIVE HEART RATE (" + bpm + " BPM) — EARNING ACTIVE CALORIE STEPS AUTOMATICALLY"
+                : "LIVE HEART RATE (" + bpm + " BPM RESTING) — RAISE HR ABOVE 90 BPM TO EARN STEPS";
+          }
+        }
+      });
+      boundAny = true;
+    } catch (_) {}
+
+    try {
+      const rscSvc = await gattServer.getPrimaryService("running_speed_and_cadence");
+      const rscChar = await rscSvc.getCharacteristic("rsc_measurement");
+      bleRscChar = rscChar;
+      await rscChar.startNotifications();
+      rscChar.addEventListener("characteristicvaluechanged", (ev) => {
+        const dv = ev && ev.target ? ev.target.value : null;
+        const { cadenceSpm } = parseRscBlePacket(dv);
+        accumulateBleEffort();
+        bleCurrentSpm = cadenceSpm;
+        updateBleReadoutDom();
+      });
+      boundAny = true;
+    } catch (_) {}
+
+    if (!boundAny) {
+      throw new Error("Device paired, but Heart Rate Broadcasting is off — enable Broadcast Heart Rate in your WHOOP / watch app.");
+    }
+  }
+
+  async function handlePairBluetoothClick() {
+    playHwTick(960, 10);
+    const statusEl = $("walk-ble-status");
+    const btnLbl = $("walk-ble-btn-label");
+    if (typeof navigator === "undefined" || !navigator.bluetooth || typeof navigator.bluetooth.requestDevice !== "function") {
+      if (statusEl) {
+        statusEl.textContent =
+          "This browser doesn't expose Web Bluetooth (use Chrome on Android or Mac, or connect Fitbit / Strava / Apple Health below).";
+      }
+      showToast("USE CHROME OR LINK ACCOUNT BELOW");
+      return;
+    }
+
+    try {
+      bleManualDisconnect = false;
+      if (btnLbl) btnLbl.textContent = "[ PAIRING BLUETOOTH... ]";
+      const device = await navigator.bluetooth.requestDevice({
+        filters: [
+          { services: ["heart_rate"] },
+          { services: ["running_speed_and_cadence"] },
+          { namePrefix: "WHOOP" }
+        ],
+        optionalServices: ["heart_rate", "running_speed_and_cadence", "battery_service"]
+      });
+
+      bleDevice = device;
+      bleLastTickMs = Date.now();
+      device.addEventListener("gattserverdisconnected", async () => {
+        await flushBleStepsToVault().catch(() => {});
+        updateBleReadoutDom();
+        if (bleManualDisconnect) return;
+        if (statusEl) statusEl.textContent = "Strap signal paused — reconnecting when in range...";
+        try {
+          if (bleDevice && bleDevice.gatt) {
+            const reSrv = await bleDevice.gatt.connect();
+            await attachBleCharacteristics(reSrv);
+            updateBleReadoutDom();
+          }
+        } catch (_) {}
+      });
+
+      const srv = await device.gatt.connect();
+      await attachBleCharacteristics(srv);
+      if (bleFlushTimer) clearInterval(bleFlushTimer);
+      bleFlushTimer = setInterval(() => {
+        flushBleStepsToVault().catch(() => {});
+      }, 8000);
+
+      updateBleReadoutDom();
+      if (btnLbl) {
+        btnLbl.innerHTML = '<span class="nw">[ BLUETOOTH</span> <span class="nw">CONNECTED \u2713 ]</span>';
+      }
+      if (statusEl) {
+        statusEl.textContent =
+          "Connected to " + (device.name || "strap") + " — walk or work out to unlock steps live.";
+      }
+      showToast("BLUETOOTH CONNECTED");
+    } catch (err) {
+      const msg = String((err && err.message) || err || "");
+      if (btnLbl) {
+        btnLbl.innerHTML = '<span class="nw">[ PAIR</span> BLUETOOTH <span class="nw">(WHOOP / WATCH) ]</span>';
+      }
+      if (!/cancelled|canceled|User cancelled/i.test(msg)) {
+        if (statusEl) statusEl.textContent = msg;
+        showToast("BLUETOOTH PAIR CANCELLED");
+      }
+    }
+  }
+
+  async function handleDisconnectBluetoothClick() {
+    playHwTick(760, 8);
+    bleManualDisconnect = true;
+    if (bleFlushTimer) {
+      clearInterval(bleFlushTimer);
+      bleFlushTimer = null;
+    }
+    await flushBleStepsToVault().catch(() => {});
+    try {
+      if (bleDevice && bleDevice.gatt && bleDevice.gatt.connected) {
+        bleDevice.gatt.disconnect();
+      }
+    } catch (_) {}
+    bleCurrentBpm = 0;
+    bleCurrentSpm = 0;
+    bleLastTickMs = 0;
+    updateBleReadoutDom();
+    if ($("walk-ble-btn-label")) {
+      $("walk-ble-btn-label").innerHTML =
+        '<span class="nw">[ PAIR</span> BLUETOOTH <span class="nw">(WHOOP / WATCH) ]</span>';
+    }
+    if ($("walk-ble-status")) {
+      $("walk-ble-status").textContent = "Bluetooth disconnected.";
+    }
+  }
+
+  function localTodayWindowBrowser() {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = d.getMonth() + 1;
+    const day = d.getDate();
+    const next = new Date(year, d.getMonth(), day + 1);
+    const startMidnightSec = Math.floor(new Date(year, d.getMonth(), day, 0, 0, 0, 0).getTime() / 1000);
+    return {
+      year,
+      month,
+      day,
+      nextYear: next.getFullYear(),
+      nextMonth: next.getMonth() + 1,
+      nextDay: next.getDate(),
+      startMidnightSec
+    };
+  }
+
+  async function probeLocalFitnessBridge() {
+    const ctrl = typeof AbortController === "function" ? new AbortController() : null;
+    const t = ctrl ? setTimeout(() => ctrl.abort(), 900) : null;
+    try {
+      const r = await fetch(LOCAL_BRIDGE_BASE + "/status", {
+        method: "GET",
+        signal: ctrl ? ctrl.signal : undefined
+      });
+      if (r.ok) {
+        const j = await r.json();
+        if (j && j.ok) {
+          localBridgeState = { reachable: true, providers: j.providers || {} };
+          refreshLiveFitnessConnectorUi();
+          return true;
+        }
+      }
+    } catch (_) {
+      localBridgeState = { reachable: false, providers: {} };
+    } finally {
+      if (t) clearTimeout(t);
+    }
+    refreshLiveFitnessConnectorUi();
+    return false;
+  }
+
+  function getConnectedCloudSummary() {
+    const store = loadFitnessOAuthStore();
+    const connected = [];
+    if (localBridgeState.reachable && localBridgeState.providers) {
+      Object.keys(localBridgeState.providers).forEach((k) => {
+        const p = localBridgeState.providers[k];
+        if (p && p.connected) {
+          const nm = k === "google" ? "FITBIT" : k.toUpperCase();
+          const stp = typeof p.lastSteps === "number" ? " (" + formatInt(p.lastSteps) + " STEPS)" : "";
+          const str = k === "whoop" && p.lastStrain ? " · " + Number(p.lastStrain).toFixed(1) + " STRAIN" : "";
+          connected.push({ key: k, via: "bridge", label: nm + stp + str });
+        }
+      });
+    }
+    ["google", "strava"].forEach((k) => {
+      const p = store.providers && store.providers[k];
+      if (p && (p.accessToken || p.refreshToken)) {
+        if (!connected.some((c) => c.key === k)) {
+          const nm = k === "google" ? "FITBIT / GOOGLE HEALTH" : "STRAVA";
+          const stp = typeof p.lastSteps === "number" ? " (" + formatInt(p.lastSteps) + " STEPS)" : "";
+          connected.push({ key: k, via: "browser", label: nm + stp });
+        }
+      }
+    });
+    return connected;
+  }
+
+  function refreshLiveFitnessConnectorUi() {
+    if ($("walk-whoop-cli-cmd")) {
+      $("walk-whoop-cli-cmd").textContent = buildWhoopCliCommand();
+    }
+    if ($("walk-google-redirect-code")) {
+      $("walk-google-redirect-code").textContent = window.location.origin + "/";
+    }
+    if ($("walk-strava-domain-code")) {
+      $("walk-strava-domain-code").textContent = window.location.hostname || "runtime.jackcolley.com";
+    }
+    if ($("walk-whoop-bridge-form")) {
+      $("walk-whoop-bridge-form").hidden = !localBridgeState.reachable;
+    }
+    if ($("walk-whoop-bridge-desc") && localBridgeState.reachable) {
+      $("walk-whoop-bridge-desc").textContent =
+        "Local gate.js bridge detected on this computer (127.0.0.1:8765) — enter your WHOOP App credentials below to authorize in 1 click, or run the command:";
+    }
+
+    const bleBtn = $("walk-ble-btn");
+    const bleStatus = $("walk-ble-status");
+    if (
+      bleBtn &&
+      bleStatus &&
+      (typeof navigator === "undefined" || !navigator.bluetooth) &&
+      isIosMotionPermissionDevice()
+    ) {
+      bleStatus.textContent =
+        "iPhone Safari blocks browser Bluetooth — use Apple Health Auto-Sync or connect Fitbit / Strava below.";
+      if ($("walk-auto-details") && !$("walk-auto-details").hasAttribute("data-user-toggled")) {
+        $("walk-auto-details").open = true;
+      }
+    }
+
+    const store = loadFitnessOAuthStore();
+    if ($("walk-google-client-id") && !$("walk-google-client-id").value) {
+      const savedG = (store.providers.google && store.providers.google.clientId) || DEFAULT_OAUTH_CLIENTS.google || "";
+      if (savedG) $("walk-google-client-id").value = savedG;
+    }
+    if ($("walk-strava-client-id") && !$("walk-strava-client-id").value) {
+      const savedS = (store.providers.strava && store.providers.strava.clientId) || DEFAULT_OAUTH_CLIENTS.strava || "";
+      if (savedS) $("walk-strava-client-id").value = savedS;
+    }
+    if ($("walk-strava-client-secret") && !$("walk-strava-client-secret").value) {
+      const savedSec = (store.providers.strava && store.providers.strava.clientSecret) || "";
+      if (savedSec) $("walk-strava-client-secret").value = savedSec;
+    }
+
+    const connected = getConnectedCloudSummary();
+    const btnMap = {
+      whoop: $("walk-oauth-whoop-btn"),
+      google: $("walk-oauth-google-btn"),
+      strava: $("walk-oauth-strava-btn")
+    };
+    Object.keys(btnMap).forEach((k) => {
+      const b = btnMap[k];
+      if (!b) return;
+      const isConn = connected.some((c) => c.key === k);
+      b.classList.toggle("is-connected", isConn);
+      b.classList.toggle("is-selected", activeOAuthDrawerProvider === k);
+      const base = k === "whoop" ? "WHOOP API" : k === "google" ? "FITBIT" : "STRAVA";
+      b.textContent = isConn ? base + " \u2713" : base;
+    });
+
+    const bar = $("walk-oauth-status-bar");
+    const barTxt = $("walk-oauth-status-text");
+    if (bar && barTxt) {
+      if (connected.length > 0) {
+        bar.hidden = false;
+        barTxt.textContent = "LIVE: " + connected.map((c) => c.label).join(" + ");
+      } else {
+        bar.hidden = true;
+      }
+    }
+
+    const drawer = $("walk-oauth-drawer");
+    if (drawer) {
+      drawer.hidden = !activeOAuthDrawerProvider;
+      ["whoop", "google", "strava"].forEach((k) => {
+        const pane = $("walk-oauth-pane-" + k);
+        if (pane) pane.hidden = activeOAuthDrawerProvider !== k;
+      });
+      if ($("walk-oauth-drawer-title") && activeOAuthDrawerProvider) {
+        const titles = {
+          whoop: "CONNECT WHOOP OFFICIAL API",
+          google: "CONNECT FITBIT / GOOGLE HEALTH",
+          strava: "CONNECT STRAVA LIVE SYNC"
+        };
+        $("walk-oauth-drawer-title").textContent = titles[activeOAuthDrawerProvider] || "CONNECT ACCOUNT";
+      }
+    }
+  }
+
+  function openOAuthDrawer(provider) {
+    playHwTick(900, 8);
+    if (activeOAuthDrawerProvider === provider) {
+      activeOAuthDrawerProvider = "";
+    } else {
+      activeOAuthDrawerProvider = provider;
+    }
+    refreshLiveFitnessConnectorUi();
+  }
+
+  function startGoogleHealthBrowserOAuth() {
+    playHwTick(960, 10);
+    const inp = $("walk-google-client-id");
+    const store = loadFitnessOAuthStore();
+    const clientId = String((inp && inp.value) || DEFAULT_OAUTH_CLIENTS.google || "").trim();
+    if (!clientId) {
+      if (inp) inp.focus();
+      showToast("PASTE GOOGLE OAUTH CLIENT ID FIRST");
+      return;
+    }
+    const stateNonce = "rt_oauth_google_" + Math.random().toString(36).slice(2, 12);
+    store.providers.google = Object.assign({}, store.providers.google || {}, { clientId });
+    store.pending = {
+      provider: "google",
+      state: stateNonce,
+      vaultTarget: getEffectiveVaultTarget(),
+      createdAt: Date.now()
+    };
+    saveFitnessOAuthStore(store);
+
+    const redirectUri = window.location.origin + "/";
+    const u = new URL("https://accounts.google.com/o/oauth2/v2/auth");
+    u.searchParams.set("client_id", clientId);
+    u.searchParams.set("redirect_uri", redirectUri);
+    u.searchParams.set("response_type", "token");
+    u.searchParams.set("include_granted_scopes", "true");
+    u.searchParams.set(
+      "scope",
+      "https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly"
+    );
+    u.searchParams.set("state", stateNonce);
+    window.location.assign(u.toString());
+  }
+
+  function startStravaBrowserOAuth() {
+    playHwTick(960, 10);
+    const idInp = $("walk-strava-client-id");
+    const secInp = $("walk-strava-client-secret");
+    const store = loadFitnessOAuthStore();
+    const clientId = String((idInp && idInp.value) || DEFAULT_OAUTH_CLIENTS.strava || "").trim();
+    const clientSecret = String((secInp && secInp.value) || (store.providers.strava && store.providers.strava.clientSecret) || "").trim();
+    if (!clientId || !clientSecret) {
+      if (!clientId && idInp) idInp.focus();
+      else if (secInp) secInp.focus();
+      showToast("ENTER STRAVA CLIENT ID & SECRET");
+      return;
+    }
+    const stateNonce = "rt_oauth_strava_" + Math.random().toString(36).slice(2, 12);
+    store.providers.strava = Object.assign({}, store.providers.strava || {}, {
+      clientId,
+      clientSecret
+    });
+    store.pending = {
+      provider: "strava",
+      state: stateNonce,
+      vaultTarget: getEffectiveVaultTarget(),
+      createdAt: Date.now()
+    };
+    saveFitnessOAuthStore(store);
+
+    const redirectUri = window.location.origin + "/";
+    const u = new URL("https://www.strava.com/oauth/authorize");
+    u.searchParams.set("client_id", clientId);
+    u.searchParams.set("redirect_uri", redirectUri);
+    u.searchParams.set("response_type", "code");
+    u.searchParams.set("approval_prompt", "auto");
+    u.searchParams.set("scope", "activity:read_all");
+    u.searchParams.set("state", stateNonce);
+    window.location.assign(u.toString());
+  }
+
+  async function startWhoopLocalBridgeOAuth() {
+    playHwTick(960, 10);
+    const idInp = $("walk-whoop-client-id");
+    const secInp = $("walk-whoop-client-secret");
+    const clientId = String((idInp && idInp.value) || "").trim();
+    const clientSecret = String((secInp && secInp.value) || "").trim();
+    const { vaultId, fieldToken } = getEffectiveVaultTarget();
+    try {
+      const r = await fetch(LOCAL_BRIDGE_BASE + "/connect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          provider: "whoop",
+          clientId,
+          clientSecret,
+          vaultId,
+          ft: fieldToken
+        })
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.authUrl) {
+        showToast(j.needsCredentials ? "ENTER WHOOP CLIENT ID & SECRET" : "LOCAL BRIDGE ERROR");
+        return;
+      }
+      window.location.assign(j.authUrl);
+    } catch (_) {
+      showToast("RUN GATE.JS --BRIDGE ON YOUR COMPUTER FIRST");
+    }
+  }
+
+  async function ensureStravaBrowserToken(entry, store) {
+    const now = Date.now();
+    if (entry.accessToken && entry.expiresAt && now < Number(entry.expiresAt) - 60000) {
+      return entry.accessToken;
+    }
+    if (!entry.refreshToken || !entry.clientId || !entry.clientSecret) {
+      if (entry.accessToken) return entry.accessToken;
+      throw new Error("Strava token expired — tap STRAVA to reconnect.");
+    }
+    const r = await fetch("https://www.strava.com/oauth/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        client_id: entry.clientId,
+        client_secret: entry.clientSecret,
+        refresh_token: entry.refreshToken,
+        grant_type: "refresh_token"
+      })
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.access_token) {
+      throw new Error("Strava refresh failed (" + r.status + ")");
+    }
+    entry.accessToken = j.access_token;
+    if (j.refresh_token) entry.refreshToken = j.refresh_token;
+    entry.expiresAt = j.expires_at ? Number(j.expires_at) * 1000 : Date.now() + Number(j.expires_in || 3600) * 1000;
+    store.providers.strava = entry;
+    saveFitnessOAuthStore(store);
+    return entry.accessToken;
+  }
+
+  async function syncSingleBrowserProvider(provider, showFeedback) {
+    const store = loadFitnessOAuthStore();
+    const entry = store.providers && store.providers[provider];
+    if (!entry || (!entry.accessToken && !entry.refreshToken)) return null;
+
+    const today = localTodayWindowBrowser();
+
+    if (provider === "google") {
+      if (entry.expiresAt && Date.now() >= Number(entry.expiresAt)) {
+        if (showFeedback) {
+          activeOAuthDrawerProvider = "google";
+          refreshLiveFitnessConnectorUi();
+          showToast("FITBIT SESSION EXPIRED — TAP SIGN IN");
+        }
+        return null;
+      }
+      const rangeBody = JSON.stringify({
+        windowSizeDays: 1,
+        range: {
+          start: { date: { year: today.year, month: today.month, day: today.day } },
+          end: { date: { year: today.nextYear, month: today.nextMonth, day: today.nextDay } }
+        }
+      });
+      const [stepsRes, calRes] = await Promise.all([
+        fetch("https://health.googleapis.com/v4/users/me/dataTypes/steps/dataPoints:dailyRollUp", {
+          method: "POST",
+          headers: {
+            Authorization: "Bearer " + entry.accessToken,
+            "Content-Type": "application/json"
+          },
+          body: rangeBody
+        }),
+        fetch("https://health.googleapis.com/v4/users/me/dataTypes/active-energy-burned/dataPoints:dailyRollUp", {
+          method: "POST",
+          headers: {
+            Authorization: "Bearer " + entry.accessToken,
+            "Content-Type": "application/json"
+          },
+          body: rangeBody
+        }).catch(() => null)
+      ]);
+      if (!stepsRes.ok) {
+        throw new Error("Fitbit / Google Health HTTP " + stepsRes.status);
+      }
+      const stepsJson = await stepsRes.json().catch(() => ({}));
+      const roll = Array.isArray(stepsJson.rollupDataPoints) ? stepsJson.rollupDataPoints[0] : null;
+      const countSum = roll && roll.steps && roll.steps.countSum ? Number(roll.steps.countSum) : 0;
+
+      let activeKcal = 0;
+      if (calRes && calRes.ok) {
+        const calJson = await calRes.json().catch(() => ({}));
+        const calRoll = Array.isArray(calJson.rollupDataPoints) ? calJson.rollupDataPoints[0] : null;
+        if (calRoll && calRoll.activeEnergyBurned && typeof calRoll.activeEnergyBurned.kcalSum === "number") {
+          activeKcal = calRoll.activeEnergyBurned.kcalSum;
+        }
+      }
+      const stepsEq = Math.max(Math.round(countSum), Math.round(activeKcal * 20));
+      entry.lastSteps = stepsEq;
+      entry.lastSyncAt = Date.now();
+      store.providers.google = entry;
+      saveFitnessOAuthStore(store);
+
+      if (stepsEq > 0) {
+        const outcome = await creditParsedEffort({
+          metric: "steps",
+          rawValue: stepsEq,
+          stepsEquivalent: stepsEq,
+          mode: "daily",
+          source: "google_health",
+          summary: "FITBIT / GOOGLE HEALTH (" + formatInt(stepsEq) + " STEPS)"
+        });
+        refreshLiveFitnessConnectorUi();
+        if (showFeedback) {
+          showToast(
+            outcome && outcome.stepsAdded > 0
+              ? "+" + formatInt(outcome.stepsAdded) + " STEPS SYNCED FROM FITBIT"
+              : "FITBIT UP TO DATE (" + formatInt(stepsEq) + " STEPS)"
+          );
+        }
+        return outcome;
+      }
+      refreshLiveFitnessConnectorUi();
+      if (showFeedback) showToast("CONNECTED — 0 STEPS RECORDED TODAY YET");
+      return { stepsAdded: 0, reportedToday: 0 };
+    }
+
+    if (provider === "strava") {
+      const token = await ensureStravaBrowserToken(entry, store);
+      const r = await fetch(
+        "https://www.strava.com/api/v3/athlete/activities?after=" + today.startMidnightSec + "&per_page=30",
+        { headers: { Authorization: "Bearer " + token } }
+      );
+      if (!r.ok) throw new Error("Strava API HTTP " + r.status);
+      const list = await r.json().catch(() => []);
+      let totalStepsEq = 0;
+      for (const act of Array.isArray(list) ? list : []) {
+        const sport = String(act.sport_type || act.type || "").toLowerCase();
+        const distM = Number(act.distance || 0);
+        const kj = Number(act.kilojoules || 0);
+        const cal = Number(act.calories || 0);
+        const movingMin = Number(act.moving_time || 0) / 60;
+        const avgHr = Number(act.average_heartrate || 0);
+        let actSteps = 0;
+        if (/walk|run|hike|trail/.test(sport) && distM > 0) {
+          actSteps = Math.round(distM * 1.31);
+        }
+        const activeKcal =
+          cal > 0
+            ? cal
+            : kj > 0
+              ? kj
+              : avgHr >= 95 && movingMin > 0
+                ? Math.max(1, (avgHr - 80) * 0.14 * movingMin)
+                : movingMin > 0 && !/walk|run|hike/.test(sport)
+                  ? movingMin * 5
+                  : 0;
+        actSteps = Math.max(actSteps, Math.round(activeKcal * 20));
+        totalStepsEq += actSteps;
+      }
+      entry.lastSteps = totalStepsEq;
+      entry.lastSyncAt = Date.now();
+      store.providers.strava = entry;
+      saveFitnessOAuthStore(store);
+
+      if (totalStepsEq > 0) {
+        const outcome = await creditParsedEffort({
+          metric: "steps",
+          rawValue: totalStepsEq,
+          stepsEquivalent: totalStepsEq,
+          mode: "daily",
+          source: "strava_api",
+          summary: "STRAVA (" + formatInt(totalStepsEq) + " STEPS)"
+        });
+        refreshLiveFitnessConnectorUi();
+        if (showFeedback) {
+          showToast(
+            outcome && outcome.stepsAdded > 0
+              ? "+" + formatInt(outcome.stepsAdded) + " STEPS SYNCED FROM STRAVA"
+              : "STRAVA UP TO DATE (" + formatInt(totalStepsEq) + " STEPS)"
+          );
+        }
+        return outcome;
+      }
+      refreshLiveFitnessConnectorUi();
+      if (showFeedback) showToast("STRAVA CONNECTED — NO WORKOUTS TODAY YET");
+      return { stepsAdded: 0, reportedToday: 0 };
+    }
+    return null;
+  }
+
+  async function handleSyncConnectedAccountsNow(showFeedback) {
+    if (showFeedback) playHwTick(960, 10);
+    const syncBtn = $("walk-oauth-sync-btn");
+    if (syncBtn) syncBtn.disabled = true;
+    try {
+      let anySynced = false;
+      if (localBridgeState.reachable) {
+        const { vaultId, fieldToken } = getEffectiveVaultTarget();
+        const r = await fetch(LOCAL_BRIDGE_BASE + "/sync", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ vaultId, ft: fieldToken })
+        });
+        if (r.ok) {
+          const j = await r.json().catch(() => ({}));
+          if (j && j.synced) {
+            anySynced = true;
+            if (window.RuntimeGate && window.RuntimeGate.syncFromCloud) {
+              const st = await window.RuntimeGate.syncFromCloud();
+              if (st) renderState(st);
+            }
+            await probeLocalFitnessBridge();
+            const added = (j.results || []).reduce((acc, x) => acc + Number(x.stepsAdded || 0), 0);
+            if (showFeedback) {
+              showToast(added > 0 ? "+" + formatInt(added) + " STEPS SYNCED" : "WHOOP / BRIDGE UP TO DATE");
+            }
+          }
+        }
+      }
+      const store = loadFitnessOAuthStore();
+      for (const k of ["google", "strava"]) {
+        if (store.providers && store.providers[k] && (store.providers[k].accessToken || store.providers[k].refreshToken)) {
+          await syncSingleBrowserProvider(k, showFeedback && !anySynced);
+          anySynced = true;
+        }
+      }
+      refreshLiveFitnessConnectorUi();
+    } catch (err) {
+      if (showFeedback) {
+        showToast("SYNC ERROR: " + String((err && err.message) || "CHECK CONNECTION"));
+      }
+    } finally {
+      if (syncBtn) syncBtn.disabled = false;
+    }
+  }
+
+  function handleDisconnectBrowserAccounts() {
+    playHwTick(760, 8);
+    const store = loadFitnessOAuthStore();
+    if (store.providers) {
+      Object.keys(store.providers).forEach((k) => {
+        delete store.providers[k].accessToken;
+        delete store.providers[k].refreshToken;
+        delete store.providers[k].expiresAt;
+        delete store.providers[k].lastSteps;
+      });
+    }
+    saveFitnessOAuthStore(store);
+    refreshLiveFitnessConnectorUi();
+    showToast("CLOUD ACCOUNT UNLINKED IN BROWSER");
+  }
+
+  async function consumeIncomingFitnessOAuthRedirect() {
+    const hashStr = String(window.location.hash || "").replace(/^#/, "");
+    if (hashStr.includes("access_token=") && hashStr.includes("state=rt_oauth_google_")) {
+      const hp = new URLSearchParams(hashStr);
+      const accessToken = hp.get("access_token") || "";
+      const stateGot = hp.get("state") || "";
+      const expiresIn = Number(hp.get("expires_in") || 3600);
+      const store = loadFitnessOAuthStore();
+      history.replaceState({ screen: "walk" }, "", window.location.pathname + "#walk");
+      setWalkMode("health");
+      showScreen("walk", false);
+      if (accessToken && (!store.pending || !store.pending.state || store.pending.state === stateGot)) {
+        store.providers.google = Object.assign({}, store.providers.google || {}, {
+          accessToken,
+          expiresAt: Date.now() + expiresIn * 1000
+        });
+        store.pending = null;
+        saveFitnessOAuthStore(store);
+        activeOAuthDrawerProvider = "";
+        refreshLiveFitnessConnectorUi();
+        await syncSingleBrowserProvider("google", true).catch((e) => {
+          showToast("FITBIT SYNC ERROR: " + String(e.message || e));
+        });
+        return true;
+      }
+    }
+
+    const sp = new URLSearchParams(window.location.search || "");
+    const code = sp.get("code") || "";
+    const stateQ = sp.get("state") || "";
+    if (code && stateQ.indexOf("rt_oauth_strava_") === 0) {
+      const store = loadFitnessOAuthStore();
+      history.replaceState({ screen: "walk" }, "", window.location.pathname + "#walk");
+      setWalkMode("health");
+      showScreen("walk", false);
+      const stravaCfg = (store.providers && store.providers.strava) || {};
+      if (
+        stravaCfg.clientId &&
+        stravaCfg.clientSecret &&
+        (!store.pending || !store.pending.state || store.pending.state === stateQ)
+      ) {
+        try {
+          const r = await fetch("https://www.strava.com/oauth/token", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              client_id: stravaCfg.clientId,
+              client_secret: stravaCfg.clientSecret,
+              code,
+              grant_type: "authorization_code"
+            })
+          });
+          const j = await r.json().catch(() => ({}));
+          if (!r.ok || !j.access_token) {
+            throw new Error(j.message || "Strava token exchange HTTP " + r.status);
+          }
+          store.providers.strava = Object.assign({}, stravaCfg, {
+            accessToken: j.access_token,
+            refreshToken: j.refresh_token || "",
+            expiresAt: j.expires_at ? Number(j.expires_at) * 1000 : Date.now() + Number(j.expires_in || 3600) * 1000
+          });
+          store.pending = null;
+          saveFitnessOAuthStore(store);
+          activeOAuthDrawerProvider = "";
+          refreshLiveFitnessConnectorUi();
+          await syncSingleBrowserProvider("strava", true);
+        } catch (err) {
+          showToast("STRAVA AUTH ERROR: " + String(err.message || err));
+        }
+        return true;
+      }
+    }
+
+    const bridgeProv = sp.get("bridge_synced") || "";
+    if (bridgeProv) {
+      history.replaceState({ screen: "walk" }, "", window.location.pathname + "#walk");
+      setWalkMode("health");
+      showScreen("walk", false);
+      if (window.RuntimeGate && window.RuntimeGate.syncFromCloud) {
+        const st = await window.RuntimeGate.syncFromCloud().catch(() => null);
+        if (st) renderState(st);
+      }
+      await probeLocalFitnessBridge();
+      showToast(bridgeProv.toUpperCase() + " LIVE SYNC CONNECTED");
+      return true;
+    }
+
+    return false;
   }
 
   async function scanHealthScreenshotFile(fileOrBlob) {
@@ -2312,7 +3220,7 @@
     } finally {
       if (scanBtn) scanBtn.disabled = false;
       if (scanLbl) {
-        scanLbl.innerHTML = '<span class="nw">[ SCAN</span> WHOOP / HEALTH <span class="nw">SCREENSHOT ]</span>';
+        scanLbl.innerHTML = '<span class="nw">[ SCAN</span> FITNESS <span class="nw">SCREENSHOT ]</span>';
       }
     }
   }
@@ -3522,8 +4430,77 @@
     if ($("walk-copy-health-btn")) {
       $("walk-copy-health-btn").addEventListener("click", handleCopyWalkHealthLink);
     }
+    if ($("walk-auto-details")) {
+      $("walk-auto-details").addEventListener("toggle", () => {
+        $("walk-auto-details").setAttribute("data-user-toggled", "1");
+      });
+    }
+    if ($("walk-ble-btn")) {
+      $("walk-ble-btn").addEventListener("click", handlePairBluetoothClick);
+    }
+    if ($("walk-ble-disconnect-btn")) {
+      $("walk-ble-disconnect-btn").addEventListener("click", handleDisconnectBluetoothClick);
+    }
+    ["whoop", "google", "strava"].forEach((prov) => {
+      const btn = $("walk-oauth-" + prov + "-btn");
+      if (btn) {
+        btn.addEventListener("click", () => openOAuthDrawer(prov));
+      }
+    });
+    if ($("walk-oauth-close-btn")) {
+      $("walk-oauth-close-btn").addEventListener("click", () => {
+        playHwTick(780, 8);
+        activeOAuthDrawerProvider = "";
+        refreshLiveFitnessConnectorUi();
+      });
+    }
+    if ($("walk-copy-whoop-cmd-btn")) {
+      $("walk-copy-whoop-cmd-btn").addEventListener("click", () => {
+        copyText(buildWhoopCliCommand(), "WHOOP CONNECT COMMAND COPIED");
+        const lbl = $("walk-copy-whoop-cmd-label");
+        if (lbl) {
+          lbl.textContent = "[ COMMAND COPIED ✓ ]";
+          setTimeout(() => {
+            if ($("walk-copy-whoop-cmd-label")) {
+              $("walk-copy-whoop-cmd-label").textContent = "[ COPY WHOOP CONNECT COMMAND ]";
+            }
+          }, 3500);
+        }
+      });
+    }
+    if ($("walk-google-auth-btn")) {
+      $("walk-google-auth-btn").addEventListener("click", startGoogleHealthBrowserOAuth);
+    }
+    if ($("walk-strava-auth-btn")) {
+      $("walk-strava-auth-btn").addEventListener("click", startStravaBrowserOAuth);
+    }
+    if ($("walk-whoop-bridge-auth-btn")) {
+      $("walk-whoop-bridge-auth-btn").addEventListener("click", startWhoopLocalBridgeOAuth);
+    }
+    if ($("walk-oauth-sync-btn")) {
+      $("walk-oauth-sync-btn").addEventListener("click", () => handleSyncConnectedAccountsNow(true));
+    }
+    if ($("walk-oauth-disconnect-btn")) {
+      $("walk-oauth-disconnect-btn").addEventListener("click", handleDisconnectBrowserAccounts);
+    }
 
     function syncRouteFromUrl() {
+      const hashCheck = String(window.location.hash || "");
+      const searchCheck = String(window.location.search || "");
+      if (
+        (hashCheck.includes("access_token=") && hashCheck.includes("state=rt_oauth_google_")) ||
+        (searchCheck.includes("code=") && searchCheck.includes("rt_oauth_strava_")) ||
+        searchCheck.includes("bridge_synced=")
+      ) {
+        consumeIncomingFitnessOAuthRedirect();
+        return;
+      }
+      if (!autoSyncedBrowserFitnessOnce) {
+        autoSyncedBrowserFitnessOnce = true;
+        setTimeout(() => {
+          handleSyncConnectedAccountsNow(false).catch(() => {});
+        }, 600);
+      }
       const {
         rawUrlPairVaultId,
         rawUrlSyncVaultId,

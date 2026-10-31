@@ -1,4 +1,4 @@
-/* RUNTIME v24 — Passthrough Service Worker + Android Native Share-Sheet Receiver */
+/* RUNTIME v25 — Passthrough Service Worker + Android Native Share-Sheet Receiver */
 const SHARE_CACHE = "runtime-share-target-v1";
 
 self.addEventListener("install", () => {

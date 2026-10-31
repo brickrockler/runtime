@@ -11,21 +11,21 @@
   <meta property="og:url" content="https://runtime.jackcolley.com/" />
   <meta property="og:title" content="RUNTIME — Burn Calories to Burn Tokens" />
   <meta property="og:description" content="Oh, you wanna burn some tokens? Not until you burn some calories, punk." />
-  <meta property="og:image" content="https://runtime.jackcolley.com/og-card.png?v=24" />
+  <meta property="og:image" content="https://runtime.jackcolley.com/og-card.png?v=25" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
   <meta property="og:image:alt" content="RUNTIME — Oh, you wanna burn some tokens? Not until you burn some calories, punk." />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="RUNTIME — Burn Calories to Burn Tokens" />
   <meta name="twitter:description" content="Oh, you wanna burn some tokens? Not until you burn some calories, punk." />
-  <meta name="twitter:image" content="https://runtime.jackcolley.com/og-card.png?v=24" />
+  <meta name="twitter:image" content="https://runtime.jackcolley.com/og-card.png?v=25" />
   <meta name="theme-color" content="#000000" />
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=24" />
-  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=24" />
-  <link rel="manifest" href="/manifest.webmanifest?v=24" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=25" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=25" />
+  <link rel="manifest" href="/manifest.webmanifest?v=25" />
   <link rel="preload" href="/fonts/ibm-plex-mono-700.woff2" as="font" type="font/woff2" crossorigin />
   <link rel="preload" href="/fonts/silkscreen-400.woff2" as="font" type="font/woff2" crossorigin />
-  <link rel="stylesheet" href="/styles.css?v=24" />
+  <link rel="stylesheet" href="/styles.css?v=25" />
 </head>
 <body>
   <div id="preloader" class="preloader" role="status" aria-label="Loading Runtime" hidden>
@@ -212,9 +212,9 @@
       <div class="steps-layout">
         <!-- Mobile-First Direct On-Phone Card (Visible on <=768px) -->
         <div class="grid-frame steps-mobile-direct-card">
-          <h3 class="steps-panel-title">Walk with this phone or sync WHOOP / Watch</h3>
+          <h3 class="steps-panel-title">Walk with this phone or connect WHOOP / Watch</h3>
           <p class="steps-panel-copy">
-            Count pocket steps right in your browser, or drop a screenshot or calorie count from WHOOP, Google Fit, Samsung Health, Garmin, Strava, or Apple Watch.
+            Count pocket steps right in your browser, pair WHOOP or your watch over Bluetooth, or link WHOOP, Fitbit, Strava, or Apple Health for automatic sync.
           </p>
           <div class="steps-mobile-btn-stack">
             <button type="button" class="hw-btn cta-giant" id="steps-open-walk-btn"><span class="btn-lbl"><span class="nw">[ START</span> POCKET <span class="nw">COUNTER -&gt; ]</span></span></button>
@@ -251,7 +251,7 @@
           <div class="steps-desktop-instruction">
             <h3 class="steps-panel-title">Point your phone camera at the QR code</h3>
             <p class="steps-panel-copy">
-              Opens your step counter in Chrome or Safari — no app download or login needed. Walk with your phone in your pocket, or log WHOOP, Garmin, Samsung Health, or Apple Watch on your phone or right here.
+              Opens your step counter in Chrome or Safari — no app download needed. Walk with your phone in your pocket, or connect WHOOP, Fitbit, Strava, Garmin, or Apple Health live.
             </p>
           </div>
 
@@ -267,7 +267,7 @@
 
           <div class="steps-next-row">
             <button type="button" class="hw-btn cta-giant" id="steps-next-btn"><span class="btn-lbl"><span class="nw">[ NEXT:</span> CONNECT YOUR <span class="nw">GATE -&gt; ]</span></span></button>
-            <button type="button" class="hw-btn--blackwire cta-giant" id="steps-log-desktop-btn"><span class="btn-lbl"><span class="nw">[ LOG</span> WHOOP / <span class="nw">WATCH ]</span></span></button>
+            <button type="button" class="hw-btn--blackwire cta-giant" id="steps-log-desktop-btn"><span class="btn-lbl"><span class="nw">[ CONNECT</span> WHOOP / <span class="nw">WATCH ]</span></span></button>
           </div>
         </div>
       </div>
@@ -587,37 +587,176 @@
           </p>
         </div>
 
-        <!-- MODE 2: WHOOP / WATCH / ANY FITNESS APP (Zero Tasker, Zero App Install!) -->
+        <!-- MODE 2: LIVE WHOOP / FITBIT / STRAVA / BLUETOOTH / APPLE HEALTH -->
         <div id="walk-panel-health" class="walk-panel" role="tabpanel" aria-labelledby="walk-mode-health-btn" hidden>
           <div class="walk-health-balance-bar" id="walk-health-balance" role="status" aria-live="polite">
             0 STEPS BANKED · 0 TOKENS AVAILABLE
           </div>
 
           <div class="walk-step-stack">
-            <!-- CARD 1: 1-TAP SCREENSHOT SCANNER -->
-            <div class="walk-step-card walk-scan-card" id="walk-scan-dropzone">
+            <!-- CARD 1: REAL LIVE DEVICE & CLOUD ACCOUNT CONNECTIONS -->
+            <div class="walk-step-card walk-live-connect-card">
               <div class="walk-step-head">
                 <span class="walk-step-num" aria-hidden="true">1</span>
-                <h3 class="walk-step-title">SCAN A SCREENSHOT</h3>
+                <h3 class="walk-step-title">CONNECT LIVE DEVICE OR ACCOUNT</h3>
               </div>
               <p class="walk-step-desc">
-                Snap today&rsquo;s screen from <strong>WHOOP</strong>, <strong>Google Fit</strong>, <strong>Samsung Health</strong>, <strong>Garmin</strong>, <strong>Fitbit</strong>, <strong>Strava</strong>, or <strong>Apple Fitness</strong> — read privately on your device.
+                Pair <strong>WHOOP</strong>, <strong>Garmin</strong>, <strong>Fitbit</strong>, or <strong>Polar</strong> directly over Bluetooth (zero keys needed), or link your cloud account for automatic daily sync.
               </p>
-              <input id="walk-screenshot-input" type="file" accept="image/*" hidden />
-              <button type="button" class="hw-btn hw-btn--red cta-giant walk-full-btn" id="walk-scan-btn">
-                <span id="walk-scan-btn-label"><span class="nw">[ SCAN</span> WHOOP / HEALTH <span class="nw">SCREENSHOT ]</span></span>
+
+              <!-- Zero-Key Live Web Bluetooth Strap / Watch Connection -->
+              <button type="button" class="hw-btn hw-btn--red cta-giant walk-full-btn" id="walk-ble-btn">
+                <span id="walk-ble-btn-label"><span class="nw">[ PAIR</span> BLUETOOTH <span class="nw">(WHOOP / WATCH) ]</span></span>
               </button>
-              <p id="walk-scan-status" class="walk-step-tip" role="status" aria-live="polite">
-                Tip: You can also paste <span class="nw">(<kbd>Cmd</kbd>+<kbd>V</kbd>)</span> a screenshot, or tap <strong>Share -&gt; Runtime</strong> on Android after adding Runtime to your Home Screen.
+
+              <div id="walk-ble-readout" class="walk-ble-readout" hidden role="status" aria-live="polite">
+                <div class="walk-ble-metrics">
+                  <span id="walk-ble-device-name" class="walk-ble-name">STRAP LIVE</span>
+                  <span id="walk-ble-bpm" class="walk-ble-stat">-- BPM</span>
+                  <span id="walk-ble-earned" class="walk-ble-stat">+0 STEPS</span>
+                </div>
+                <button type="button" class="hw-btn hw-btn--wire walk-ble-stop-btn" id="walk-ble-disconnect-btn">
+                  [ DISCONNECT ]
+                </button>
+              </div>
+
+              <p id="walk-ble-status" class="walk-step-tip">
+                WHOOP: open WHOOP app -&gt; Device Settings -&gt; turn ON <strong>Broadcast Heart Rate</strong>, then tap Pair.
               </p>
+
+              <!-- Cloud Account Sync: WHOOP v2 / Fitbit (Google Health v4) / Strava v3 -->
+              <div class="walk-cloud-subhead">CLOUD AUTO-SYNC (PULLS STEPS &amp; WORKOUT CALORIES)</div>
+              <div class="walk-provider-grid" role="group" aria-label="Connect fitness account">
+                <button type="button" class="hw-btn hw-btn--wire walk-provider-btn" id="walk-oauth-whoop-btn" data-provider="whoop">
+                  WHOOP API
+                </button>
+                <button type="button" class="hw-btn hw-btn--wire walk-provider-btn" id="walk-oauth-google-btn" data-provider="google">
+                  FITBIT
+                </button>
+                <button type="button" class="hw-btn hw-btn--wire walk-provider-btn" id="walk-oauth-strava-btn" data-provider="strava">
+                  STRAVA
+                </button>
+              </div>
+
+              <div id="walk-oauth-status-bar" class="walk-oauth-status-bar" hidden>
+                <span id="walk-oauth-status-text" class="walk-oauth-status-text">CONNECTED</span>
+                <div class="walk-oauth-status-actions">
+                  <button type="button" class="hw-btn hw-btn--red walk-oauth-mini-btn" id="walk-oauth-sync-btn">[ SYNC NOW ]</button>
+                  <button type="button" class="hw-btn hw-btn--wire walk-oauth-mini-btn" id="walk-oauth-disconnect-btn">[ UNLINK ]</button>
+                </div>
+              </div>
+
+              <!-- Inline Expandable Setup / Authorize Drawer -->
+              <div id="walk-oauth-drawer" class="walk-oauth-drawer" hidden>
+                <div class="walk-oauth-drawer-head">
+                  <span id="walk-oauth-drawer-title" class="walk-oauth-drawer-title">CONNECT ACCOUNT</span>
+                  <button type="button" class="hw-btn hw-btn--wire walk-oauth-close-btn" id="walk-oauth-close-btn" aria-label="Close connector panel">[ X ]</button>
+                </div>
+
+                <!-- WHOOP Panel (Local CLI / Bridge + Strava Mobile Tip) -->
+                <div id="walk-oauth-pane-whoop" class="walk-oauth-pane" hidden>
+                  <p class="walk-step-desc" id="walk-whoop-bridge-desc">
+                    WHOOP&rsquo;s cloud API blocks direct browser requests, so <code>gate.js</code> connects from your computer in one command and auto-syncs your real WHOOP <strong>steps</strong>, <strong>strain</strong>, &amp; <strong>workout calories</strong> every time you prompt your AI:
+                  </p>
+                  <pre class="walk-cmd-pre" id="walk-whoop-cli-cmd">curl -fsSL https://runtime.jackcolley.com/gate.js | node - --connect whoop</pre>
+                  <button type="button" class="hw-btn hw-btn--red walk-full-btn" id="walk-copy-whoop-cmd-btn">
+                    <span id="walk-copy-whoop-cmd-label">[ COPY WHOOP CONNECT COMMAND ]</span>
+                  </button>
+                  <div id="walk-whoop-bridge-form" class="walk-oauth-fields" hidden>
+                    <label for="walk-whoop-client-id" class="walk-field-lbl">WHOOP CLIENT ID (FROM DEVELOPER-DASHBOARD.WHOOP.COM)</label>
+                    <input id="walk-whoop-client-id" type="text" class="walk-quick-input" placeholder="WHOOP Client ID" autocomplete="off" />
+                    <label for="walk-whoop-client-secret" class="walk-field-lbl">WHOOP CLIENT SECRET</label>
+                    <input id="walk-whoop-client-secret" type="password" class="walk-quick-input" placeholder="WHOOP Client Secret" autocomplete="off" />
+                    <button type="button" class="hw-btn hw-btn--red walk-full-btn" id="walk-whoop-bridge-auth-btn">
+                      [ AUTHORIZE WHOOP VIA LOCAL BRIDGE -&gt; ]
+                    </button>
+                  </div>
+                  <p class="walk-step-tip">
+                    On your phone without a computer? Pair <strong>WHOOP Bluetooth</strong> above, or turn on <strong>Strava</strong> in the WHOOP app (More -&gt; App Settings -&gt; Integrations -&gt; Strava) and tap <strong>STRAVA</strong>.
+                  </p>
+                </div>
+
+                <!-- FITBIT / PIXEL WATCH / GOOGLE HEALTH v4 Panel (100% Browser Direct OAuth) -->
+                <div id="walk-oauth-pane-google" class="walk-oauth-pane" hidden>
+                  <p class="walk-step-desc">
+                    Pulls live daily <strong>Fitbit</strong>, <strong>Pixel Watch</strong>, &amp; <strong>Google Health</strong> steps and active calories directly in your browser via Google Health API v4.
+                  </p>
+                  <div class="walk-oauth-fields">
+                    <label for="walk-google-client-id" class="walk-field-lbl">GOOGLE OAUTH WEB CLIENT ID (ONE-TIME)</label>
+                    <input id="walk-google-client-id" type="text" class="walk-quick-input" placeholder="123456-abc.apps.googleusercontent.com" autocomplete="off" />
+                    <button type="button" class="hw-btn hw-btn--red walk-full-btn" id="walk-google-auth-btn">
+                      <span class="btn-lbl"><span class="nw">[ SIGN IN</span> WITH FITBIT / GOOGLE <span class="nw">HEALTH -&gt; ]</span></span>
+                    </button>
+                  </div>
+                  <p class="walk-step-tip" id="walk-google-redirect-hint">
+                    Create a free Web Client ID at <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer">Google Cloud Credentials</a> (enable <strong>Google Health API</strong>, add Redirect URI <code id="walk-google-redirect-code">https://runtime.jackcolley.com/</code>).
+                  </p>
+                </div>
+
+                <!-- STRAVA v3 Panel (100% Browser Direct OAuth — Syncs WHOOP, Garmin, Fitbit, Oura, Watch!) -->
+                <div id="walk-oauth-pane-strava" class="walk-oauth-pane" hidden>
+                  <p class="walk-step-desc">
+                    Connects <strong>Strava</strong> directly in your browser — automatically pulls workouts synced from <strong>WHOOP</strong>, <strong>Garmin</strong>, <strong>Fitbit</strong>, <strong>Oura</strong>, <strong>Samsung Health</strong>, or <strong>Apple Watch</strong>.
+                  </p>
+                  <div class="walk-oauth-fields">
+                    <label for="walk-strava-client-id" class="walk-field-lbl">STRAVA CLIENT ID</label>
+                    <input id="walk-strava-client-id" type="text" inputmode="numeric" class="walk-quick-input" placeholder="e.g. 128491" autocomplete="off" />
+                    <label for="walk-strava-client-secret" class="walk-field-lbl">STRAVA CLIENT SECRET (STORED ONLY IN THIS BROWSER)</label>
+                    <input id="walk-strava-client-secret" type="password" class="walk-quick-input" placeholder="Strava Client Secret" autocomplete="off" />
+                    <button type="button" class="hw-btn hw-btn--red walk-full-btn" id="walk-strava-auth-btn">
+                      <span class="btn-lbl"><span class="nw">[ AUTHORIZE</span> STRAVA LIVE <span class="nw">SYNC -&gt; ]</span></span>
+                    </button>
+                  </div>
+                  <p class="walk-step-tip">
+                    Get your free key in 20s at <a href="https://www.strava.com/settings/api" target="_blank" rel="noopener noreferrer">strava.com/settings/api</a> (set Callback Domain to <code id="walk-strava-domain-code">runtime.jackcolley.com</code>).
+                  </p>
+                </div>
+              </div>
             </div>
 
-            <!-- CARD 2: INSTANT WRIST / APP CHECK-IN (STEPS, CALORIES, OR KM) -->
-            <div class="walk-step-card">
+            <!-- CARD 2: IPHONE APPLE HEALTH AUTO-SYNC -->
+            <details class="walk-auto-details" id="walk-auto-details">
+              <summary>Apple Health automatic sync (iPhone / Apple Watch)</summary>
+              <div class="walk-auto-body">
+                <p class="walk-step-desc">
+                  Sync Apple Health steps automatically from iPhone Shortcuts with your personal link (<code>&amp;steps=6400</code> or <code>&amp;calories=350</code>).
+                </p>
+                <div class="walk-auto-btns">
+                  <button type="button" class="hw-btn hw-btn--red walk-full-btn" id="walk-copy-health-btn">
+                    <span id="walk-copy-health-label">[ COPY MY SYNC LINK ]</span>
+                  </button>
+                  <a href="shortcuts://create-shortcut" class="hw-btn hw-btn--wire walk-full-btn" id="walk-open-shortcuts-btn">
+                    <span class="btn-lbl"><span class="nw">[ OPEN</span> IPHONE SHORTCUTS <span class="nw">APP -&gt; ]</span></span>
+                  </a>
+                </div>
+                <div class="walk-action-list">
+                  <div class="walk-action-row">
+                    <div class="walk-action-name">iPhone Apple Health Shortcut (3 actions)</div>
+                    <div class="walk-action-detail">1. <strong>Find Health Samples</strong> (Steps, Start Date is Today, Group by Day) -&gt; 2. <strong>Calculate Statistics</strong> (Sum) -&gt; 3. <strong>Open URLs</strong> (paste sync link + Sum after <code>steps=</code>).</div>
+                  </div>
+                </div>
+              </div>
+            </details>
+
+            <!-- CARD 3: COMPACT BACKUP — SCREENSHOT SCAN OR MANUAL ENTRY -->
+            <div class="walk-step-card walk-scan-card" id="walk-scan-dropzone">
               <div class="walk-step-head">
                 <span class="walk-step-num" aria-hidden="true">2</span>
-                <h3 class="walk-step-title">OR ENTER FROM YOUR WRIST</h3>
+                <h3 class="walk-step-title">BACKUP: SCREENSHOT OR QUICK ENTRY</h3>
               </div>
+              <p class="walk-step-desc">
+                Need a quick one-off check-in? Scan a fitness screenshot on-device or type today&rsquo;s total below.
+              </p>
+
+              <input id="walk-screenshot-input" type="file" accept="image/*" hidden />
+              <button type="button" class="hw-btn hw-btn--wire walk-full-btn walk-backup-scan-btn" id="walk-scan-btn">
+                <span id="walk-scan-btn-label"><span class="nw">[ SCAN</span> FITNESS <span class="nw">SCREENSHOT ]</span></span>
+              </button>
+              <p id="walk-scan-status" class="walk-step-tip" role="status" aria-live="polite">
+                Or paste <span class="nw">(<kbd>Cmd</kbd>+<kbd>V</kbd>)</span> a screenshot anywhere on this screen.
+              </p>
+
+              <div class="walk-backup-divider" aria-hidden="true"></div>
 
               <div class="walk-unit-switch" role="radiogroup" aria-label="Check-in unit">
                 <button type="button" role="radio" id="walk-unit-steps-btn" class="walk-os-btn is-active" data-walk-unit="steps" aria-checked="true" tabindex="0">
@@ -647,7 +786,7 @@
               </form>
 
               <p id="walk-quick-hint" class="walk-step-tip">
-                Syncs only new steps added today — enter your latest total anytime without double-counting.
+                Syncs only new steps added today — never double-counts.
               </p>
 
               <div class="walk-preset-row" aria-label="One-tap workout presets">
@@ -656,30 +795,6 @@
                 <button type="button" class="hw-btn hw-btn--wire walk-preset-chip" id="walk-preset-km" data-preset-unit="km" data-preset-val="3">+3 KM</button>
               </div>
             </div>
-
-            <!-- CARD 3: OPTIONAL COLLAPSED AUTO-SYNC LINK (IPHONE SHORTCUTS / WEBHOOK) -->
-            <details class="walk-auto-details" id="walk-auto-details">
-              <summary>Automatic sync link (iPhone Shortcuts or URL)</summary>
-              <div class="walk-auto-body">
-                <p class="walk-step-desc">
-                  Copy your personal sync URL to update steps or calories automatically from iPhone Shortcuts or any script (<code>&amp;steps=6400</code> or <code>&amp;calories=350</code>).
-                </p>
-                <div class="walk-auto-btns">
-                  <button type="button" class="hw-btn hw-btn--red walk-full-btn" id="walk-copy-health-btn">
-                    <span id="walk-copy-health-label">[ COPY MY SYNC LINK ]</span>
-                  </button>
-                  <a href="shortcuts://create-shortcut" class="hw-btn hw-btn--wire walk-full-btn" id="walk-open-shortcuts-btn">
-                    <span class="btn-lbl"><span class="nw">[ OPEN</span> IPHONE SHORTCUTS <span class="nw">APP -&gt; ]</span></span>
-                  </a>
-                </div>
-                <div class="walk-action-list">
-                  <div class="walk-action-row">
-                    <div class="walk-action-name">iPhone Apple Health Shortcut (3 actions)</div>
-                    <div class="walk-action-detail">1. <strong>Find Health Samples</strong> (Steps, Start Date is Today, Group by Day) -&gt; 2. <strong>Calculate Statistics</strong> (Sum) -&gt; 3. <strong>Open URLs</strong> (paste sync link + Sum after <code>steps=</code>).</div>
-                  </div>
-                </div>
-              </div>
-            </details>
           </div>
         </div>
 
@@ -701,7 +816,7 @@
         <span class="qr-bezel-tag">SCAN WITH PHONE CAMERA</span>
         <div id="modal-qr-slot" class="qr-frame"></div>
       </div>
-      <p class="qr-modal-sub">Count pocket steps right in Chrome or Safari, or scan a WHOOP or watch screenshot.</p>
+      <p class="qr-modal-sub">Count pocket steps in Chrome or Safari, pair WHOOP or Watch Bluetooth, or link Fitbit / Strava / Apple Health.</p>
       <div class="qr-modal-actions">
         <button type="button" class="hw-btn hw-btn--red" id="qr-modal-copy-btn">[ COPY PHONE LINK ]</button>
       </div>
@@ -718,9 +833,9 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
-  <script src="/qr-mini.js?v=24"></script>
-  <script src="/vault-engine.js?v=24"></script>
-  <script src="/app.js?v=24"></script>
-  <script src="/sticky-notes.js?v=24"></script>
+  <script src="/qr-mini.js?v=25"></script>
+  <script src="/vault-engine.js?v=25"></script>
+  <script src="/app.js?v=25"></script>
+  <script src="/sticky-notes.js?v=25"></script>
 </body>
 </html>
