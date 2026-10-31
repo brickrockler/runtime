@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>RUNTIME — Burn Calories to Burn Tokens</title>
+  <meta name="description" content="Oh, you wanna burn some tokens? Not until you burn some calories, punk. Walk outside to unlock AI coding turns or OpenRouter API credit." />
+  <link rel="canonical" href="https://runtime-jackcolley.web.app/" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="RUNTIME" />
+  <meta property="og:url" content="https://runtime-jackcolley.web.app/" />
+  <meta property="og:title" content="RUNTIME — Burn Calories to Burn Tokens" />
+  <meta property="og:description" content="Oh, you wanna burn some tokens? Not until you burn some calories, punk." />
+  <meta property="og:image" content="https://runtime-jackcolley.web.app/og-card.png?v=23" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="RUNTIME — Oh, you wanna burn some tokens? Not until you burn some calories, punk." />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="RUNTIME — Burn Calories to Burn Tokens" />
+  <meta name="twitter:description" content="Oh, you wanna burn some tokens? Not until you burn some calories, punk." />
+  <meta name="twitter:image" content="https://runtime-jackcolley.web.app/og-card.png?v=23" />
+  <meta name="theme-color" content="#000000" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=23" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=23" />
+  <link rel="manifest" href="/manifest.webmanifest?v=23" />
+  <link rel="preload" href="/fonts/ibm-plex-mono-700.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="preload" href="/fonts/silkscreen-400.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="stylesheet" href="/styles.css?v=23" />
+</head>
+<body>
+  <div id="preloader" class="preloader" role="status" aria-label="Loading Runtime" hidden>
+    <div class="preloader-box">
+      <p class="preloader-title">WALK TO UNLOCK YOUR AI</p>
+      <div class="preloader-bar"><div class="preloader-bar-fill"></div></div>
+    </div>
+  </div>
+
+  <header class="topbar">
+    <button type="button" class="topbar-brand" id="nav-home-btn">
+      <span class="topbar-dot" aria-hidden="true"></span>
+      <span>RUNTIME</span>
+    </button>
+
+    <div class="topbar-right">
+      <button type="button" class="topbar-setup-link" id="topbar-setup-btn" hidden>[ SETUP ]</button>
+      <button type="button" class="status-pill" id="topbar-status-btn" title="Connection status">
+        <span class="status-pill-dot" id="topbar-status-dot" aria-hidden="true"></span>
+        <span id="topbar-status-label">DISCONNECTED</span>
+      </button>
+    </div>
+  </header>
+
+  <main>
+    <!-- SCREEN 1: LANDING -->
+    <section id="screen-landing" class="screen landing-stage" aria-labelledby="hero-h1">
+      <div class="grid-frame landing-card">
+        <div class="hero-logo-wrap">
+          <h1 id="hero-h1" class="sr-only" tabindex="-1">RUNTIME</h1>
+          <svg class="hero-logo-svg" viewBox="0 0 68 7" shape-rendering="crispEdges" aria-hidden="true"><g fill="#000000"><rect x="0" y="0" width="1" height="1"/><rect x="1" y="0" width="1" height="1"/><rect x="2" y="0" width="1" height="1"/><rect x="3" y="0" width="1" height="1"/><rect x="4" y="0" width="1" height="1"/><rect x="5" y="0" width="1" height="1"/><rect x="6" y="0" width="1" height="1"/><rect x="0" y="1" width="1" height="1"/><rect x="1" y="1" width="1" height="1"/><rect x="6" y="1" width="1" height="1"/><rect x="7" y="1" width="1" height="1"/><rect x="0" y="2" width="1" height="1"/><rect x="1" y="2" width="1" height="1"/><rect x="6" y="2" width="1" height="1"/><rect x="7" y="2" width="1" height="1"/><rect x="0" y="3" width="1" height="1"/><rect x="1" y="3" width="1" height="1"/><rect x="2" y="3" width="1" height="1"/><rect x="3" y="3" width="1" height="1"/><rect x="4" y="3" width="1" height="1"/><rect x="5" y="3" width="1" height="1"/><rect x="6" y="3" width="1" height="1"/><rect x="0" y="4" width="1" height="1"/><rect x="1" y="4" width="1" height="1"/><rect x="5" y="4" width="1" height="1"/><rect x="6" y="4" width="1" height="1"/><rect x="0" y="5" width="1" height="1"/><rect x="1" y="5" width="1" height="1"/><rect x="6" y="5" width="1" height="1"/><rect x="7" y="5" width="1" height="1"/><rect x="0" y="6" width="1" height="1"/><rect x="1" y="6" width="1" height="1"/><rect x="6" y="6" width="1" height="1"/><rect x="7" y="6" width="1" height="1"/><rect x="10" y="0" width="1" height="1"/><rect x="11" y="0" width="1" height="1"/><rect x="16" y="0" width="1" height="1"/><rect x="17" y="0" width="1" height="1"/><rect x="10" y="1" width="1" height="1"/><rect x="11" y="1" width="1" height="1"/><rect x="16" y="1" width="1" height="1"/><rect x="17" y="1" width="1" height="1"/><rect x="10" y="2" width="1" height="1"/><rect x="11" y="2" width="1" height="1"/><rect x="16" y="2" width="1" height="1"/><rect x="17" y="2" width="1" height="1"/><rect x="10" y="3" width="1" height="1"/><rect x="11" y="3" width="1" height="1"/><rect x="16" y="3" width="1" height="1"/><rect x="17" y="3" width="1" height="1"/><rect x="10" y="4" width="1" height="1"/><rect x="11" y="4" width="1" height="1"/><rect x="16" y="4" width="1" height="1"/><rect x="17" y="4" width="1" height="1"/><rect x="10" y="5" width="1" height="1"/><rect x="11" y="5" width="1" height="1"/><rect x="16" y="5" width="1" height="1"/><rect x="17" y="5" width="1" height="1"/><rect x="11" y="6" width="1" height="1"/><rect x="12" y="6" width="1" height="1"/><rect x="13" y="6" width="1" height="1"/><rect x="14" y="6" width="1" height="1"/><rect x="15" y="6" width="1" height="1"/><rect x="16" y="6" width="1" height="1"/><rect x="20" y="0" width="1" height="1"/><rect x="21" y="0" width="1" height="1"/><rect x="26" y="0" width="1" height="1"/><rect x="27" y="0" width="1" height="1"/><rect x="20" y="1" width="1" height="1"/><rect x="21" y="1" width="1" height="1"/><rect x="22" y="1" width="1" height="1"/><rect x="26" y="1" width="1" height="1"/><rect x="27" y="1" width="1" height="1"/><rect x="20" y="2" width="1" height="1"/><rect x="21" y="2" width="1" height="1"/><rect x="22" y="2" width="1" height="1"/><rect x="23" y="2" width="1" height="1"/><rect x="26" y="2" width="1" height="1"/><rect x="27" y="2" width="1" height="1"/><rect x="20" y="3" width="1" height="1"/><rect x="21" y="3" width="1" height="1"/><rect x="23" y="3" width="1" height="1"/><rect x="24" y="3" width="1" height="1"/><rect x="26" y="3" width="1" height="1"/><rect x="27" y="3" width="1" height="1"/><rect x="20" y="4" width="1" height="1"/><rect x="21" y="4" width="1" height="1"/><rect x="24" y="4" width="1" height="1"/><rect x="25" y="4" width="1" height="1"/><rect x="26" y="4" width="1" height="1"/><rect x="27" y="4" width="1" height="1"/><rect x="20" y="5" width="1" height="1"/><rect x="21" y="5" width="1" height="1"/><rect x="25" y="5" width="1" height="1"/><rect x="26" y="5" width="1" height="1"/><rect x="27" y="5" width="1" height="1"/><rect x="20" y="6" width="1" height="1"/><rect x="21" y="6" width="1" height="1"/><rect x="26" y="6" width="1" height="1"/><rect x="27" y="6" width="1" height="1"/><rect x="30" y="0" width="1" height="1"/><rect x="31" y="0" width="1" height="1"/><rect x="32" y="0" width="1" height="1"/><rect x="33" y="0" width="1" height="1"/><rect x="34" y="0" width="1" height="1"/><rect x="35" y="0" width="1" height="1"/><rect x="36" y="0" width="1" height="1"/><rect x="37" y="0" width="1" height="1"/><rect x="33" y="1" width="1" height="1"/><rect x="34" y="1" width="1" height="1"/><rect x="33" y="2" width="1" height="1"/><rect x="34" y="2" width="1" height="1"/><rect x="33" y="3" width="1" height="1"/><rect x="34" y="3" width="1" height="1"/><rect x="33" y="4" width="1" height="1"/><rect x="34" y="4" width="1" height="1"/><rect x="33" y="5" width="1" height="1"/><rect x="34" y="5" width="1" height="1"/><rect x="33" y="6" width="1" height="1"/><rect x="34" y="6" width="1" height="1"/><rect x="40" y="0" width="1" height="1"/><rect x="41" y="0" width="1" height="1"/><rect x="42" y="0" width="1" height="1"/><rect x="43" y="0" width="1" height="1"/><rect x="44" y="0" width="1" height="1"/><rect x="45" y="0" width="1" height="1"/><rect x="42" y="1" width="1" height="1"/><rect x="43" y="1" width="1" height="1"/><rect x="42" y="2" width="1" height="1"/><rect x="43" y="2" width="1" height="1"/><rect x="42" y="3" width="1" height="1"/><rect x="43" y="3" width="1" height="1"/><rect x="42" y="4" width="1" height="1"/><rect x="43" y="4" width="1" height="1"/><rect x="42" y="5" width="1" height="1"/><rect x="43" y="5" width="1" height="1"/><rect x="40" y="6" width="1" height="1"/><rect x="41" y="6" width="1" height="1"/><rect x="42" y="6" width="1" height="1"/><rect x="43" y="6" width="1" height="1"/><rect x="44" y="6" width="1" height="1"/><rect x="45" y="6" width="1" height="1"/><rect x="48" y="0" width="1" height="1"/><rect x="49" y="0" width="1" height="1"/><rect x="56" y="0" width="1" height="1"/><rect x="57" y="0" width="1" height="1"/><rect x="48" y="1" width="1" height="1"/><rect x="49" y="1" width="1" height="1"/><rect x="50" y="1" width="1" height="1"/><rect x="55" y="1" width="1" height="1"/><rect x="56" y="1" width="1" height="1"/><rect x="57" y="1" width="1" height="1"/><rect x="48" y="2" width="1" height="1"/><rect x="49" y="2" width="1" height="1"/><rect x="50" y="2" width="1" height="1"/><rect x="51" y="2" width="1" height="1"/><rect x="54" y="2" width="1" height="1"/><rect x="55" y="2" width="1" height="1"/><rect x="56" y="2" width="1" height="1"/><rect x="57" y="2" width="1" height="1"/><rect x="48" y="3" width="1" height="1"/><rect x="49" y="3" width="1" height="1"/><rect x="51" y="3" width="1" height="1"/><rect x="52" y="3" width="1" height="1"/><rect x="53" y="3" width="1" height="1"/><rect x="54" y="3" width="1" height="1"/><rect x="56" y="3" width="1" height="1"/><rect x="57" y="3" width="1" height="1"/><rect x="48" y="4" width="1" height="1"/><rect x="49" y="4" width="1" height="1"/><rect x="52" y="4" width="1" height="1"/><rect x="53" y="4" width="1" height="1"/><rect x="56" y="4" width="1" height="1"/><rect x="57" y="4" width="1" height="1"/><rect x="48" y="5" width="1" height="1"/><rect x="49" y="5" width="1" height="1"/><rect x="56" y="5" width="1" height="1"/><rect x="57" y="5" width="1" height="1"/><rect x="48" y="6" width="1" height="1"/><rect x="49" y="6" width="1" height="1"/><rect x="56" y="6" width="1" height="1"/><rect x="57" y="6" width="1" height="1"/><rect x="60" y="0" width="1" height="1"/><rect x="61" y="0" width="1" height="1"/><rect x="62" y="0" width="1" height="1"/><rect x="63" y="0" width="1" height="1"/><rect x="64" y="0" width="1" height="1"/><rect x="65" y="0" width="1" height="1"/><rect x="66" y="0" width="1" height="1"/><rect x="67" y="0" width="1" height="1"/><rect x="60" y="1" width="1" height="1"/><rect x="61" y="1" width="1" height="1"/><rect x="60" y="2" width="1" height="1"/><rect x="61" y="2" width="1" height="1"/><rect x="60" y="3" width="1" height="1"/><rect x="61" y="3" width="1" height="1"/><rect x="62" y="3" width="1" height="1"/><rect x="63" y="3" width="1" height="1"/><rect x="64" y="3" width="1" height="1"/><rect x="65" y="3" width="1" height="1"/><rect x="60" y="4" width="1" height="1"/><rect x="61" y="4" width="1" height="1"/><rect x="60" y="5" width="1" height="1"/><rect x="61" y="5" width="1" height="1"/><rect x="60" y="6" width="1" height="1"/><rect x="61" y="6" width="1" height="1"/><rect x="62" y="6" width="1" height="1"/><rect x="63" y="6" width="1" height="1"/><rect x="64" y="6" width="1" height="1"/><rect x="65" y="6" width="1" height="1"/><rect x="66" y="6" width="1" height="1"/><rect x="67" y="6" width="1" height="1"/></g></svg>
+        </div>
+
+        <p class="hero-subhead">
+          <span class="hero-subhead-line">Oh, you wanna burn some tokens?</span>
+          <span class="hero-subhead-line"><span class="nw">Not until you burn</span> <span class="nw">some calories, punk.</span></span>
+        </p>
+
+        <div class="terminal-bay hero-ascii-bay" aria-hidden="true">
+          <pre id="hero-ascii-art" class="hero-ascii-pre"></pre>
+        </div>
+
+        <div class="hero-cta-row">
+          <button type="button" class="hw-btn cta-giant" id="get-steppin-btn"><span class="btn-lbl"><span class="nw">[ GET</span> <span class="nw">STEPPIN' -&gt; ]</span></span></button>
+          <button type="button" class="hw-btn--blackwire cta-giant" id="landing-tracker-btn" hidden><span class="btn-lbl"><span class="nw">[ LIVE</span> <span class="nw">TRACKER -&gt; ]</span></span></button>
+        </div>
+      </div>
+    </section>
+
+    <!-- SCREEN 2: HOW IT WORKS (Clean 3-Act Character Strip) -->
+    <section id="screen-how" class="screen how-stage" hidden aria-labelledby="how-title">
+      <div class="grid-frame screen-head-plate">
+        <div class="page-head">
+          <h2 id="how-title" class="section-title" tabindex="-1">HOW IT WORKS</h2>
+          <button type="button" class="back-btn" id="how-back-btn">[ &lt;- BACK ]</button>
+        </div>
+      </div>
+
+      <div class="how-grid how-grid--spacious">
+        <article class="grid-frame how-card how-card--large">
+          <div class="how-step-head">
+            <span class="how-step-idx">01</span>
+            <h3 class="how-step-tag">WALK</h3>
+          </div>
+          <pre id="how-ascii-walk" class="terminal-bay how-ascii how-ascii--anim" aria-hidden="true"></pre>
+          <p class="how-copy">Head outside with your phone, watch, ring, or band. Every real step counts.</p>
+        </article>
+
+        <article class="grid-frame how-card how-card--large">
+          <div class="how-step-head">
+            <span class="how-step-idx">02</span>
+            <h3 class="how-step-tag">PROMPT</h3>
+          </div>
+          <pre id="how-ascii-earn" class="terminal-bay how-ascii how-ascii--anim" aria-hidden="true"></pre>
+          <p class="how-copy">Spend your steps prompting your coding agent or any OpenRouter model.</p>
+        </article>
+
+        <article class="grid-frame how-card how-card--large">
+          <div class="how-step-head">
+            <span class="how-step-idx">03</span>
+            <h3 class="how-step-tag">UH-OH</h3>
+          </div>
+          <pre id="how-ascii-repeat" class="terminal-bay how-ascii how-ascii--anim" aria-hidden="true"></pre>
+          <p class="how-copy">Hit zero and your AI locks shut cold. Go take another walk to unlock more.</p>
+        </article>
+      </div>
+
+      <div class="grid-frame cta-bar-plate section-cta-row">
+        <button type="button" class="hw-btn cta-giant" id="how-next-btn"><span class="btn-lbl"><span class="nw">[ STEP 1:</span> CONNECT YOUR <span class="nw">STEPS -&gt; ]</span></span></button>
+        <button type="button" class="hw-btn--blackwire cta-giant" id="how-rate-btn">[ STEP CALCULATOR ]</button>
+      </div>
+    </section>
+
+    <!-- SCREEN 3: DEDICATED STEP CALCULATOR (#rate) -->
+    <section id="screen-rate" class="screen" hidden aria-labelledby="rate-title">
+      <div class="grid-frame screen-head-plate">
+        <div class="page-head">
+          <h2 id="rate-title" class="section-title" tabindex="-1">STEP CALCULATOR</h2>
+          <button type="button" class="back-btn" id="rate-back-btn">[ &lt;- HOW IT WORKS ]</button>
+        </div>
+        <p class="section-lead">
+          Pick how hard you want to work for your AI, then drag the slider to test a walk.
+        </p>
+      </div>
+
+      <div class="grid-frame calc-frame">
+        <div class="calc-header">
+          <h3 class="calc-title">STEPS-TO-TOKENS RATE</h3>
+          <div class="preset-group" role="radiogroup" aria-label="Conversion difficulty">
+            <button type="button" role="radio" aria-checked="false" tabindex="-1" class="preset-btn" data-difficulty="easy">EASY</button>
+            <button type="button" role="radio" aria-checked="true" tabindex="0" class="preset-btn is-active" data-difficulty="standard">STANDARD</button>
+            <button type="button" role="radio" aria-checked="false" tabindex="-1" class="preset-btn" data-difficulty="hardcore">HARDCORE</button>
+          </div>
+        </div>
+
+        <div class="terminal-bay calc-bay">
+          <div class="calc-slider-row">
+            <div class="calc-slider-top">
+              <span>DRAG TO TEST A WALK</span>
+              <span id="how-calc-effort">1,000 STEPS (~10 MIN WALK · 45 CAL)</span>
+            </div>
+            <input id="how-calc-slider" class="calc-slider" type="range" min="500" max="20000" step="500" value="1000" aria-label="Steps walked" />
+            <div class="calc-scale-ticks" aria-hidden="true">
+              <span>500</span>
+              <span>5K</span>
+              <span>10K</span>
+              <span>15K</span>
+              <span>20K STEPS</span>
+            </div>
+
+          </div>
+
+          <div class="calc-readout-grid">
+            <div class="calc-stat">
+              <div id="how-calc-steps" class="calc-stat-val">1,000</div>
+              <div id="how-calc-time" class="calc-stat-sub">STEPS (~10 MIN · 0.8 KM)</div>
+            </div>
+            <div class="calc-stat">
+              <div id="how-calc-tokens" class="calc-stat-val">25,000</div>
+              <div id="how-calc-turns" class="calc-stat-sub">TOKENS (~10 AGENT TURNS)</div>
+            </div>
+            <div class="calc-stat">
+              <div id="how-calc-usd" class="calc-stat-val">$0.50</div>
+              <div class="calc-stat-sub">OPENROUTER SPEND LIMIT</div>
+            </div>
+          </div>
+
+          <p id="how-calc-rate-note" class="calc-rate-note">STANDARD: 1,000 STEPS = 25,000 TOKENS (~10 TURNS) OR $0.50 CREDIT</p>
+        </div>
+      </div>
+
+      <div class="grid-frame cta-bar-plate section-cta-row">
+        <button type="button" class="hw-btn cta-giant" id="rate-next-btn"><span class="btn-lbl"><span class="nw">[ STEP 1:</span> CONNECT YOUR <span class="nw">STEPS -&gt; ]</span></span></button>
+      </div>
+    </section>
+
+    <!-- SCREEN 4: STEP 1 OF 2 — CONNECT YOUR STEPS (#steps) -->
+    <section id="screen-steps" class="screen" hidden aria-labelledby="steps-title">
+      <div class="grid-frame screen-head-plate screen-head-plate--compact">
+        <nav class="setup-stepper" aria-label="Setup progress">
+          <span class="stepper-item is-current" aria-current="step">
+            <span class="stepper-full">1. CONNECT STEPS</span>
+            <span class="stepper-short">1. STEPS</span>
+          </span>
+          <span class="stepper-arrow" aria-hidden="true">-&gt;</span>
+          <button type="button" class="stepper-item stepper-item--link" id="steps-step2-btn">
+            <span class="stepper-full">2. CONNECT GATE</span>
+            <span class="stepper-short">2. GATE</span>
+          </button>
+        </nav>
+
+        <div class="page-head">
+          <h2 id="steps-title" class="section-title" tabindex="-1">CONNECT YOUR STEPS</h2>
+          <button type="button" class="back-btn" id="steps-back-btn">[ &lt;- HOW IT WORKS ]</button>
+        </div>
+
+        <p class="section-lead" id="steps-lead">
+          Link your phone once so every real walk unlocks your AI automatically.
+        </p>
+      </div>
+
+      <!-- Desktop (>768px): Single-Action QR Left + Live Status & Next CTA Right (100% Above the Fold) -->
+      <!-- Mobile (<=768px): Direct 1-Tap Phone Step Setup on Top + QR Tucked Below -->
+      <div class="steps-layout">
+        <!-- Mobile-First Direct On-Phone Card (Visible on <=768px) -->
+        <div class="grid-frame steps-mobile-direct-card">
+          <h3 class="steps-panel-title">Count steps right on this phone</h3>
+          <p class="steps-panel-copy">
+            Pick how you track walks — start your pocket step counter now, or link Apple Watch, WHOOP, Oura, Garmin, Fitbit, or Strava.
+          </p>
+          <div class="steps-mobile-btn-stack">
+            <button type="button" class="hw-btn cta-giant" id="steps-open-walk-btn"><span class="btn-lbl"><span class="nw">[ START</span> POCKET STEP <span class="nw">COUNTER -&gt; ]</span></span></button>
+            <button type="button" class="hw-btn--blackwire cta-giant" id="steps-open-health-btn"><span class="btn-lbl"><span class="nw">[ LINK</span> APPLE WATCH OR <span class="nw">HEALTH -&gt; ]</span></span></button>
+          </div>
+        </div>
+
+        <!-- Desktop Primary Left Column / Mobile Secondary Disclosure: QR Bezel -->
+        <div class="grid-frame steps-qr-card">
+          <div class="steps-qr-desktop-wrap">
+            <div class="terminal-bay steps-qr-bay">
+              <span class="qr-bezel-tag">SCAN WITH PHONE CAMERA</span>
+              <div id="setup-qr-slot" class="qr-frame"></div>
+            </div>
+            <div class="steps-qr-actions">
+              <button type="button" class="hw-btn--blackwire steps-qr-btn" id="steps-copy-link-btn">[ COPY PHONE LINK ]</button>
+            </div>
+          </div>
+
+          <details class="steps-qr-mobile-details" id="steps-qr-details">
+            <summary>Pairing another phone instead? Show QR code</summary>
+            <div class="steps-qr-mobile-inner">
+              <div class="terminal-bay steps-qr-bay">
+                <span class="qr-bezel-tag">SCAN WITH PHONE CAMERA</span>
+                <div id="setup-qr-slot-mobile" class="qr-frame"></div>
+              </div>
+              <button type="button" class="hw-btn--blackwire steps-qr-btn" id="steps-copy-link-mobile-btn">[ COPY PHONE LINK ]</button>
+            </div>
+          </details>
+        </div>
+
+        <!-- Calm Single-Action Right Card: Plain Instruction + Live Connection Status + Next CTA -->
+        <div class="grid-frame steps-action-card">
+          <div class="steps-desktop-instruction">
+            <h3 class="steps-panel-title">Point your phone camera at the QR code</h3>
+            <p class="steps-panel-copy">
+              Opens your personal step counter in Safari or Chrome — no app store download or account needed. Walk with your phone in your pocket, or connect Apple Watch, WHOOP, Oura, Garmin, Fitbit, or Strava on your phone.
+            </p>
+          </div>
+
+          <div class="terminal-bay steps-live-box" role="status" aria-live="polite">
+            <div class="steps-conn-row">
+              <span id="steps-conn-dot" class="status-pill-dot" aria-hidden="true"></span>
+              <span id="steps-conn-label" class="steps-conn-title">WAITING FOR PHONE...</span>
+            </div>
+            <p id="steps-conn-sub" class="steps-conn-sub">
+              0 steps synced yet · You can set up Step 2 right now and walk right after.
+            </p>
+          </div>
+
+          <div class="steps-next-row">
+            <button type="button" class="hw-btn cta-giant" id="steps-next-btn"><span class="btn-lbl"><span class="nw">[ NEXT:</span> CONNECT YOUR <span class="nw">GATE -&gt; ]</span></span></button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SCREEN 5: STEP 2 OF 2 — CONNECT YOUR GATE (#gate) -->
+    <section id="screen-gate" class="screen" hidden aria-labelledby="gate-title">
+      <div class="grid-frame screen-head-plate screen-head-plate--compact">
+        <nav class="setup-stepper" aria-label="Setup progress">
+          <button type="button" class="stepper-item stepper-item--link" id="gate-step1-btn">
+            <span class="stepper-full">1. CONNECT STEPS</span>
+            <span class="stepper-short">1. STEPS</span>
+          </button>
+          <span class="stepper-arrow" aria-hidden="true">-&gt;</span>
+          <span class="stepper-item is-current" aria-current="step">
+            <span class="stepper-full">2. CONNECT GATE</span>
+            <span class="stepper-short">2. GATE</span>
+          </span>
+        </nav>
+
+        <div class="page-head">
+          <h2 id="gate-title" class="section-title" tabindex="-1">CONNECT YOUR GATE</h2>
+          <button type="button" class="back-btn" id="gate-back-btn">[ &lt;- STEP 1: STEPS ]</button>
+        </div>
+
+        <p class="section-lead" id="gate-picker-lead">
+          When your steps hit zero, RUNTIME stops your AI. Pick how you want to gate it:
+        </p>
+      </div>
+
+      <!-- VIEW 2A: CLEAN 2-CARD GATE PICKER (Zero Badges, Solid Boxes, Pure Animated Art) -->
+      <div id="gate-picker-view">
+        <div class="choice-grid">
+          <!-- Card 1: Block Local Agent -->
+          <article class="grid-frame choice-card">
+            <div class="choice-top">
+              <h3 class="choice-title">BLOCK LOCAL AGENT</h3>
+              <pre id="gate-ascii-local" class="terminal-bay choice-ascii" aria-hidden="true"></pre>
+              <p class="choice-desc">
+                Locks Claude Code, Codex, Cursor, or Antigravity on your computer when your tokens hit zero. Works with the subscription you already pay for — no API key needed.
+              </p>
+            </div>
+            <button type="button" class="hw-btn cta-giant" id="choose-ide-btn"><span class="btn-lbl"><span class="nw">[ SET UP</span> LOCAL <span class="nw">BLOCKER -&gt; ]</span></span></button>
+          </article>
+
+          <!-- Card 2: Mint API Key -->
+          <article class="grid-frame choice-card">
+            <div class="choice-top">
+              <h3 class="choice-title">MINT API KEY</h3>
+              <pre id="gate-ascii-key" class="terminal-bay choice-ascii" aria-hidden="true"></pre>
+              <p class="choice-desc">
+                Mints an OpenRouter API key whose spending limit goes up as you walk and cuts off at $0.00 across every model on OpenRouter. Requires an OpenRouter account.
+              </p>
+            </div>
+            <button type="button" class="hw-btn cta-giant" id="choose-or-btn"><span class="btn-lbl"><span class="nw">[ MINT</span> API <span class="nw">KEY -&gt; ]</span></span></button>
+          </article>
+        </div>
+      </div>
+
+      <!-- VIEW 2B: COMPACT ABOVE-THE-FOLD GATE WALKTHROUGH -->
+      <div id="gate-walkthrough-view" hidden>
+        <!-- Walkthrough A: Block Local Agent (Compact Above-the-Fold) -->
+        <div id="setup-ide-block" class="gate-walkthrough">
+          <ol class="gate-step-list gate-step-list--compact">
+            <li class="grid-frame gate-step-card gate-step-card--compact">
+              <div class="gate-step-head">
+                <span class="gate-step-num" aria-hidden="true">1</span>
+                <h3 class="gate-step-title">Pick your coding tool</h3>
+              </div>
+              <div class="gate-step-body">
+                <div class="ide-tabs" role="radiogroup" aria-label="Coding tool">
+                  <button type="button" role="radio" class="chip-btn setup-ide-tab is-active" data-ide="antigravity" aria-checked="true" tabindex="0">ANTIGRAVITY</button>
+                  <button type="button" role="radio" class="chip-btn setup-ide-tab" data-ide="claude" aria-checked="false" tabindex="-1">CLAUDE CODE</button>
+                  <button type="button" role="radio" class="chip-btn setup-ide-tab" data-ide="cursor" aria-checked="false" tabindex="-1">CURSOR</button>
+                  <button type="button" role="radio" class="chip-btn setup-ide-tab" data-ide="codex" aria-checked="false" tabindex="-1">CODEX</button>
+                </div>
+                <p id="setup-ide-explain" class="gate-step-explain">
+                  Stops Antigravity from running new actions when your token balance hits zero, and unlocks as soon as you walk.
+                </p>
+                <p id="setup-ide-tech-note" class="gate-tech-note">
+                  Config file: ~/.gemini/config/hooks.json (existing settings stay untouched)
+                </p>
+              </div>
+            </li>
+
+            <li class="grid-frame gate-step-card gate-step-card--compact">
+              <div class="gate-step-head">
+                <span class="gate-step-num" aria-hidden="true">2</span>
+                <h3 class="gate-step-title">Copy and run this command once in Terminal</h3>
+              </div>
+              <div class="gate-step-body">
+                <div class="cmd-inline-row">
+                  <div class="terminal-bay code-snippet-box">
+                    <pre id="setup-ide-cmd" class="code-snippet-pre"></pre>
+                  </div>
+                  <button type="button" class="hw-btn cmd-copy-inline-btn" id="setup-copy-ide-btn">[ COPY COMMAND ]</button>
+                </div>
+                <p class="gate-step-helper">
+                  On Mac, press <kbd>Cmd</kbd>+<kbd>Space</kbd>, type <strong>Terminal</strong>, paste, and press <kbd>Enter</kbd>.
+                </p>
+              </div>
+            </li>
+
+            <li class="grid-frame gate-step-card gate-step-card--compact">
+              <div class="gate-step-finish-row">
+                <div class="gate-step-finish-left">
+                  <div class="gate-step-head">
+                    <span class="gate-step-num" aria-hidden="true">3</span>
+                    <h3 class="gate-step-title">Open your Live Tracker</h3>
+                  </div>
+                  <p class="gate-step-explain">
+                    Watch every step unlock coding turns in real time.
+                  </p>
+                </div>
+                <button type="button" class="hw-btn cta-giant js-activate-gate-btn" id="ide-activate-gate-btn"><span class="btn-lbl"><span class="nw">[ OPEN</span> LIVE <span class="nw">TRACKER -&gt; ]</span></span></button>
+              </div>
+
+              <details class="gate-manage-details" id="ide-manage-details">
+                <summary>Check status or uninstall later</summary>
+                <div class="gate-manage-body">
+                  <p class="gate-manage-note">
+                    Run either command in Terminal anytime to check your balance or remove the blocker:
+                  </p>
+                  <div class="gate-manage-actions">
+                    <button type="button" class="hw-btn--blackwire" id="setup-copy-status-btn">[ COPY STATUS COMMAND ]</button>
+                    <button type="button" class="hw-btn--blackwire" id="setup-copy-uninstall-btn">[ COPY UNINSTALL COMMAND ]</button>
+                  </div>
+                </div>
+              </details>
+            </li>
+          </ol>
+        </div>
+
+        <!-- Walkthrough B: OpenRouter API Key (Compact Above-the-Fold + Strict Step 2 Guard) -->
+        <div id="setup-or-block" class="gate-walkthrough" hidden>
+          <ol class="gate-step-list gate-step-list--compact">
+            <li class="grid-frame gate-step-card gate-step-card--compact">
+              <div class="gate-step-inline-top">
+                <div>
+                  <div class="gate-step-head">
+                    <span class="gate-step-num" aria-hidden="true">1</span>
+                    <h3 class="gate-step-title">Create an OpenRouter Provisioning Key</h3>
+                  </div>
+                  <p class="gate-step-helper">
+                    Requires an OpenRouter account. Create a <strong>Provisioning Key</strong> on that page — not a regular chat key.
+                  </p>
+                </div>
+                <a
+                  id="open-or-prov-link"
+                  class="hw-btn gate-ext-link-btn"
+                  href="https://openrouter.ai/settings/provisioning-keys"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                ><span class="btn-lbl"><span class="nw">[ OPEN</span> PROVISIONING <span class="nw">KEYS -&gt; ]</span></span></a>
+              </div>
+            </li>
+
+            <li class="grid-frame gate-step-card gate-step-card--compact">
+              <div class="gate-step-head">
+                <span class="gate-step-num" aria-hidden="true">2</span>
+                <h3 class="gate-step-title">Paste it here to create your step-gated key</h3>
+              </div>
+              <div class="gate-step-body">
+                <div class="terminal-bay key-panel">
+                  <div class="input-row">
+                    <label for="or-prov-key-input" class="sr-only">OpenRouter Provisioning Key</label>
+                    <input
+                      id="or-prov-key-input"
+                      type="password"
+                      class="hw-input"
+                      placeholder="sk-or-v1-... (Provisioning Key)"
+                      aria-describedby="or-key-status"
+                      autocomplete="off"
+                      spellcheck="false"
+                    />
+                    <button type="button" class="hw-btn hw-btn--red" id="mint-or-key-btn">[ CREATE GATED KEY ]</button>
+                    <button type="button" class="hw-btn hw-btn--wire" id="clear-or-key-btn" hidden>[ CLEAR ]</button>
+                  </div>
+                  <p id="or-key-status" class="key-status-line" role="status" aria-live="polite">
+                    Paste your Provisioning Key above. It stays in this browser and is never sent to our servers.
+                  </p>
+                </div>
+              </div>
+            </li>
+
+            <li class="grid-frame gate-step-card gate-step-card--compact" id="or-step-3-card">
+              <div class="gate-step-finish-row">
+                <div class="gate-step-finish-left">
+                  <div class="gate-step-head">
+                    <span class="gate-step-num" aria-hidden="true">3</span>
+                    <h3 class="gate-step-title">Copy your new key and open Live Tracker</h3>
+                  </div>
+
+                  <div id="setup-minted-placeholder" class="minted-key-placeholder">
+                    Your new <code>sk-or-v1-...</code> key appears here right after Step 2. Its $ limit starts at $0.00 and rises as you walk.
+                  </div>
+
+                  <div id="setup-minted-box" class="terminal-bay minted-key-reveal" hidden>
+                    <code id="setup-minted-val" class="minted-key-code"></code>
+                    <button type="button" class="hw-btn hw-btn--red" id="setup-copy-minted-btn">[ COPY KEY ]</button>
+                  </div>
+                </div>
+
+                <button type="button" class="hw-btn cta-giant js-activate-gate-btn" id="or-activate-gate-btn"><span class="btn-lbl"><span class="nw">[ OPEN</span> LIVE <span class="nw">TRACKER -&gt; ]</span></span></button>
+              </div>
+            </li>
+          </ol>
+        </div>
+      </div>
+    </section>
+
+    <!-- SCREEN 6: PURE LIVE TRACKER (#console) -->
+    <section id="screen-console" class="screen tracker-stage" hidden aria-labelledby="console-heading">
+      <h2 id="console-heading" class="sr-only" tabindex="-1">Runtime Live Step and Token Tracker</h2>
+
+      <div class="grid-frame pure-tracker-card">
+        <div class="terminal-bay tracker-panel tracker-panel--pure">
+          <div class="hud-top-row">
+            <span id="gate-status-stamp" class="status-stamp is-locked" role="status" aria-live="polite">[ LOCKED — GO WALK ]</span>
+            <span id="hud-mode-rate" class="hud-rate-summary">LOCAL AGENT · 1,000 STEPS = 25,000 TOKENS</span>
+          </div>
+
+          <div class="hud-counters hud-counters--giant">
+            <div>
+              <div class="hud-num-wrap"><span id="steps-banked-num" class="hud-num hud-num--xl">0</span></div>
+              <div class="hud-label">STEPS</div>
+            </div>
+            <div class="hud-eq" aria-hidden="true">==</div>
+            <div>
+              <div class="hud-num-wrap"><span id="balance-primary-num" class="hud-num hud-num--xl">0</span></div>
+              <div id="balance-primary-label" class="hud-label">TOKENS AVAILABLE</div>
+            </div>
+          </div>
+
+          <div class="hud-fuel-row" aria-hidden="true">
+            <span id="hud-fuel-bar" class="hud-fuel-bar">[░░░░░░░░░░░░░░░░░░░░░░░░░░░░]</span>
+            <span id="hud-fuel-label" class="hud-fuel-label">0% TANK · EMPTY — GO WALK</span>
+          </div>
+
+          <div class="hud-sub-bar">
+            <span id="console-sub-meta">~0 TURNS LEFT · 0 TOKENS BURNED</span>
+            <span id="console-device-status">STEP SOURCE: NOT CONNECTED YET</span>
+          </div>
+        </div>
+
+        <div class="pure-tracker-actions">
+          <button type="button" class="hw-btn console-mobile-walk-btn" id="console-walk-btn"><span class="btn-lbl"><span class="nw">[ OPEN</span> STEP <span class="nw">COUNTER -&gt; ]</span></span></button>
+          <button type="button" class="hw-btn" id="console-qr-btn">[ SCAN PHONE QR ]</button>
+          <button type="button" class="hw-btn--blackwire" id="console-copy-key-btn" hidden><span class="btn-lbl"><span class="nw">[ COPY</span> <span class="nw">GATED KEY ]</span></span></button>
+          <button type="button" class="hw-btn--blackwire" id="console-reconfig-btn">[ SETUP ]</button>
+          <button type="button" class="hw-btn--blackwire" id="console-calc-btn">[ STEP CALCULATOR ]</button>
+          <button type="button" class="hw-btn--blackwire" id="console-zero-btn">[ RESET TO ZERO ]</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- SCREEN 7: PHONE STEP COUNTER (#walk) -->
+    <section id="screen-walk" class="screen screen--dark" hidden aria-labelledby="walk-heading">
+      <div class="terminal-bay walk-shell">
+        <div class="walk-topbar">
+          <h2 id="walk-heading" class="walk-title" tabindex="-1">STEP COUNTER</h2>
+          <button type="button" class="hw-btn hw-btn--wire" id="walk-back-btn">[ &lt;- BACK ]</button>
+        </div>
+
+        <p id="walk-pair-status" class="walk-status" role="status" aria-live="polite">READY TO COUNT STEPS</p>
+
+        <!-- Clean 2-Mode Switcher -->
+        <div class="walk-mode-tabs" role="tablist" aria-label="How you want to track steps">
+          <button
+            type="button"
+            role="tab"
+            id="walk-mode-phone-btn"
+            class="walk-mode-tab is-active"
+            data-walk-mode="phone"
+            aria-selected="true"
+            aria-controls="walk-panel-phone"
+            tabindex="0"
+          >
+            WALK WITH PHONE
+          </button>
+          <button
+            type="button"
+            role="tab"
+            id="walk-mode-health-btn"
+            class="walk-mode-tab"
+            data-walk-mode="health"
+            aria-selected="false"
+            aria-controls="walk-panel-health"
+            tabindex="-1"
+          >
+            APPLE WATCH / HEALTH
+          </button>
+        </div>
+
+        <!-- MODE 1: WALK WITH PHONE (Instant Pocket Pedometer) -->
+        <div id="walk-panel-phone" class="walk-panel" role="tabpanel" aria-labelledby="walk-mode-phone-btn">
+          <div class="walk-counter-box">
+            <div id="walk-step-count" class="walk-big-digits">0</div>
+            <div class="walk-unit-label">STEPS SYNCED</div>
+            <div id="walk-credit-sent" class="walk-credit-line">+0 TOK ($0.00) UNLOCKED</div>
+          </div>
+
+          <pre id="walk-ascii-wave" class="walk-wave" aria-hidden="true">[····················]</pre>
+
+          <div class="walk-actions">
+            <button type="button" class="hw-btn hw-btn--red cta-giant walk-full-btn" id="walk-sensor-btn">
+              <span id="walk-sensor-label">[ START WALKING ]</span>
+            </button>
+          </div>
+
+          <p class="walk-pocket-hint">
+            Tap start and keep this screen open in your hand or pocket while you walk.
+          </p>
+        </div>
+
+        <!-- MODE 2: APPLE WATCH / HEALTH (1 -> 2 -> 3 Guided Cards) -->
+        <div id="walk-panel-health" class="walk-panel" role="tabpanel" aria-labelledby="walk-mode-health-btn" hidden>
+          <p class="walk-health-lead">
+            Sync today&rsquo;s steps from Apple Watch, WHOOP, Oura, Garmin, Fitbit, Strava — or your iPhone&rsquo;s built-in Apple Health step counter (works with your screen locked).
+          </p>
+
+          <div class="walk-os-switch" role="radiogroup" aria-label="Phone operating system">
+            <button type="button" role="radio" id="walk-os-ios-btn" class="walk-os-btn is-active" data-walk-os="ios" aria-checked="true" tabindex="0">
+              IPHONE · APPLE HEALTH
+            </button>
+            <button type="button" role="radio" id="walk-os-android-btn" class="walk-os-btn" data-walk-os="android" aria-checked="false" tabindex="-1">
+              ANDROID · HEALTH CONNECT
+            </button>
+          </div>
+
+          <div class="walk-step-stack">
+            <!-- STEP 1 -->
+            <div class="walk-step-card">
+              <div class="walk-step-head">
+                <span class="walk-step-num" aria-hidden="true">1</span>
+                <h3 class="walk-step-title">COPY YOUR PERSONAL SYNC LINK</h3>
+              </div>
+              <p class="walk-step-desc">
+                Updates your Runtime step balance with today&rsquo;s total steps.
+              </p>
+              <button type="button" class="hw-btn hw-btn--red walk-full-btn" id="walk-copy-health-btn">
+                <span id="walk-copy-health-label">[ COPY MY SYNC LINK ]</span>
+              </button>
+            </div>
+
+            <!-- IPHONE STEPS 2 & 3 -->
+            <div id="walk-steps-ios" class="walk-os-steps">
+              <div class="walk-step-card">
+                <div class="walk-step-head">
+                  <span class="walk-step-num" aria-hidden="true">2</span>
+                  <h3 class="walk-step-title">CREATE A NEW SHORTCUT</h3>
+                </div>
+                <p class="walk-step-desc">
+                  Tap below to open the built-in <strong>Shortcuts</strong> app straight to a new shortcut.
+                </p>
+                <a href="shortcuts://create-shortcut" class="hw-btn hw-btn--wire walk-full-btn" id="walk-open-shortcuts-btn">
+                  <span class="btn-lbl"><span class="nw">[ NEW</span> SHORTCUT IN SHORTCUTS <span class="nw">APP -&gt; ]</span></span>
+                </a>
+              </div>
+
+              <div class="walk-step-card">
+                <div class="walk-step-head">
+                  <span class="walk-step-num" aria-hidden="true">3</span>
+                  <h3 class="walk-step-title">ADD THESE 3 ACTIONS IN ORDER</h3>
+                </div>
+                <div class="walk-action-list">
+                  <div class="walk-action-row">
+                    <div class="walk-action-name">1. Find Health Samples</div>
+                    <div class="walk-action-detail">Type: <strong>Steps</strong> · tap <strong>+ Add Filter</strong> -&gt; <strong>Start Date</strong> is <strong>Today</strong> · tap <strong>&gt;</strong> (Show More) -&gt; <strong>Group by: Day</strong></div>
+                  </div>
+                  <div class="walk-action-row">
+                    <div class="walk-action-name">2. Calculate Statistics</div>
+                    <div class="walk-action-detail">Tap <em>Average</em> and change it to <strong>Sum</strong> of Health Samples</div>
+                  </div>
+                  <div class="walk-action-row">
+                    <div class="walk-action-name">3. Open URLs</div>
+                    <div class="walk-action-detail">Paste your sync link, then tap <strong>Calculation Result</strong> (or <strong>Sum</strong>) above the keyboard right after <code>steps=</code></div>
+                  </div>
+                </div>
+                <p class="walk-step-tip">
+                  Tap Play (&#9654;) once and choose <strong>Turn On All -&gt; Allow</strong> on the Health prompt. Add to your Home Screen or trigger when closing Fitness/Health while unlocked.
+                </p>
+              </div>
+            </div>
+
+            <!-- ANDROID STEPS 2 & 3 -->
+            <div id="walk-steps-android" class="walk-os-steps" hidden>
+              <div class="walk-step-card">
+                <div class="walk-step-head">
+                  <span class="walk-step-num" aria-hidden="true">2</span>
+                  <h3 class="walk-step-title">OPEN MACRODROID OR TASKER</h3>
+                </div>
+                <p class="walk-step-desc">
+                  Connect <strong>Health Connect</strong> (Pixel Watch, Samsung, Garmin, Fitbit, Oura) and tap <strong>+</strong> to create a macro.
+                </p>
+              </div>
+
+              <div class="walk-step-card">
+                <div class="walk-step-head">
+                  <span class="walk-step-num" aria-hidden="true">3</span>
+                  <h3 class="walk-step-title">ADD THESE 3 ITEMS</h3>
+                </div>
+                <div class="walk-action-list">
+                  <div class="walk-action-row">
+                    <div class="walk-action-name">1. Shortcut or App Trigger</div>
+                    <div class="walk-action-detail">Run from a <strong>Home Screen shortcut</strong> or when closing your fitness app</div>
+                  </div>
+                  <div class="walk-action-row">
+                    <div class="walk-action-name">2. Read Health Connect</div>
+                    <div class="walk-action-detail">Read today&rsquo;s <strong>Steps</strong> total into a local variable</div>
+                  </div>
+                  <div class="walk-action-row">
+                    <div class="walk-action-name">3. Open Website</div>
+                    <div class="walk-action-detail">Open your sync link in browser with your <strong>steps variable</strong> right after <code>steps=</code></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="walk-continue-wrap" class="walk-continue-wrap" hidden>
+          <button type="button" class="hw-btn hw-btn--wire walk-full-btn" id="walk-continue-gate-btn"><span class="btn-lbl"><span class="nw">[ NEXT:</span> CONNECT YOUR <span class="nw">GATE -&gt; ]</span></span></button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Phone QR Modal (Triggered from #console) -->
+  <div id="qr-modal" class="qr-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="qr-modal-title" hidden>
+    <div class="terminal-bay qr-modal-card">
+      <div class="qr-modal-head">
+        <span id="qr-modal-title" class="qr-modal-title">SCAN WITH YOUR PHONE</span>
+        <button type="button" class="hw-btn hw-btn--wire" id="qr-modal-close-btn" aria-label="Close QR dialog">[ X ]</button>
+      </div>
+      <div class="qr-bezel qr-bezel--centered">
+        <span class="qr-bezel-tag">SCAN WITH PHONE CAMERA</span>
+        <div id="modal-qr-slot" class="qr-frame"></div>
+      </div>
+      <p class="qr-modal-sub">Count steps in your pocket right now, or set up Apple Watch or Health sync on your phone.</p>
+      <div class="qr-modal-actions">
+        <button type="button" class="hw-btn hw-btn--red" id="qr-modal-copy-btn">[ COPY PHONE LINK ]</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+  <script src="/qr-mini.js?v=23"></script>
+  <script src="/vault-engine.js?v=23"></script>
+  <script src="/app.js?v=23"></script>
+  <script src="/sticky-notes.js?v=23"></script>
+</body>
+</html>

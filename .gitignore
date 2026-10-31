@@ -1,0 +1,15 @@
+.DS_Store
+.env
+.env.*
+**/.env
+**/.env.*
+.firebase/
+.firebaserc
+firestore.rules
+node_modules/
+**/node_modules/
+functions/
+tests/
+gauntlets/
+ARCHITECTURE_CONTRACT.md
+*.log
