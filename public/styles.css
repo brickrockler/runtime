@@ -1059,6 +1059,8 @@ a {
 
 .steps-next-row {
   display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
   align-items: center;
 }
 
@@ -1910,7 +1912,7 @@ a {
 
 .toast:not(:empty).is-visible {
   opacity: 1;
-  pointer-events: auto;
+  pointer-events: none;
 }
 
 /* ---------------- Responsive Breakpoints ---------------- */
@@ -2355,5 +2357,242 @@ body.is-pocket-locked #walk-continue-wrap {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+
+/* v24: Zero-App WHOOP / Watch / Screenshot / Pocket Dim */
+.gate-step-helper.is-installed {
+  background: var(--pure-black);
+  color: var(--red);
+  border: 1.5px solid var(--pure-black);
+  padding: 8px 12px;
+  font-family: var(--font-mono);
+  font-weight: 700;
+}
+
+.walk-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.walk-dim-btn {
+  min-height: 46px;
+}
+
+.pocket-dim-shield {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: #000000;
+  color: #4a4a4a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 24px;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+  cursor: pointer;
+}
+
+.pocket-dim-inner {
+  pointer-events: none;
+}
+
+.pocket-dim-steps {
+  font-family: var(--font-display);
+  font-size: clamp(28px, 7vw, 44px);
+  line-height: 1.1;
+  color: #464646;
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 10px;
+}
+
+.pocket-dim-sub {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #363636;
+}
+
+.walk-health-balance-bar {
+  border: 1.5px solid var(--red);
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--red);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.walk-scan-card.is-dragover {
+  outline: 3px dashed var(--red);
+  outline-offset: -5px;
+}
+
+.walk-step-tip kbd {
+  display: inline-block;
+  padding: 0 5px;
+  border: 1px solid var(--red);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.walk-unit-switch {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border: 1.5px solid var(--red);
+  margin-bottom: 12px;
+}
+
+.walk-unit-switch .walk-os-btn {
+  min-height: 46px;
+  padding: 6px 4px;
+  font-size: 11px;
+  line-height: 1.15;
+  white-space: normal;
+  overflow-wrap: break-word;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.walk-quick-form {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: stretch;
+}
+
+.walk-quick-input {
+  flex: 1 1 150px;
+  min-width: 0;
+  min-height: 46px;
+  padding: 8px 12px;
+  background: var(--pure-black);
+  color: var(--red);
+  border: 1.5px solid var(--red);
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.walk-quick-input::placeholder {
+  color: var(--red);
+  opacity: 0.72;
+}
+
+.walk-quick-go-btn {
+  min-height: 46px;
+  padding: 8px 16px;
+  flex: 0 0 auto;
+}
+
+.walk-preset-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.walk-preset-chip {
+  min-height: 44px;
+  padding: 6px 4px;
+  font-size: 11px;
+  line-height: 1.15;
+  letter-spacing: 0.02em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  white-space: normal;
+}
+
+.walk-auto-details {
+  border: 1.5px solid var(--red);
+  padding: 0 14px;
+}
+
+.walk-auto-details summary {
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 12.5px;
+  line-height: 1.25;
+  color: var(--red);
+  min-height: 46px;
+  padding: 8px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  list-style: none;
+}
+
+.walk-auto-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.walk-auto-details summary::before {
+  content: "[ + ]";
+  font-family: var(--font-mono);
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.walk-auto-details[open] > summary::before {
+  content: "[ - ]";
+}
+
+.walk-auto-body {
+  padding: 10px 0 14px;
+  border-top: 1px solid var(--red);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.walk-auto-btns {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+@media (max-width: 768px) {
+  #steps-log-desktop-btn {
+    display: none !important;
+  }
+}
+
+@media (max-width: 374px) {
+  .walk-step-card {
+    padding: 12px 10px;
+  }
+
+  .walk-auto-details {
+    padding: 0 10px;
+  }
+
+  .walk-quick-go-btn {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+
+  .walk-preset-row {
+    gap: 6px;
+  }
+
+  .walk-preset-chip,
+  .walk-unit-switch .walk-os-btn {
+    font-size: 10.5px;
+    padding: 5px 3px;
   }
 }

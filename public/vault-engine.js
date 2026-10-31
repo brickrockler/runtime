@@ -116,7 +116,7 @@
         f,
         p: st.isPaired ? 1 : 0,
         g: st.gatePath === "openrouter" || st.gatePath === "ide" ? st.gatePath : "",
-        i: sanitizeSafeId(st.selectedIde || "antigravity", "antigravity"),
+        i: sanitizeSafeId(st.selectedIde || "auto", "antigravity"),
         a: st.gateActivated ? 1 : 0
       });
       if (looksLikeRawApiKey(payload)) return;
@@ -154,7 +154,7 @@
             fieldToken: parsed.f ? sanitizeSafeId(parsed.f, "") : "",
             isPaired: Boolean(parsed.p),
             gatePath: parsed.g === "openrouter" || parsed.g === "ide" ? parsed.g : "",
-            selectedIde: sanitizeSafeId(parsed.i || "antigravity", "antigravity"),
+            selectedIde: sanitizeSafeId(parsed.i || "auto", "auto"),
             gateActivated: Boolean(parsed.a)
           };
         }
@@ -547,7 +547,7 @@
         dailySyncMap: {},
         provider: "demo",
         gatePath: "",
-        selectedIde: "antigravity",
+        selectedIde: "auto",
         gateActivated: false,
         isConnected: false,
         isPaired: false,
@@ -612,7 +612,7 @@
         dailySyncMap: pruneDailySyncMap(parsed.dailySyncMap),
         provider,
         gatePath: String(parsed.gatePath || ""),
-        selectedIde: String(parsed.selectedIde || "antigravity"),
+        selectedIde: String(parsed.selectedIde || "auto"),
         gateActivated: Boolean(parsed.gateActivated),
         isConnected: Boolean(parsed.isConnected),
         isPaired,
@@ -751,7 +751,7 @@
       hasMintedKey: hasMinted,
       orSyncError: (mintedInfo && mintedInfo.syncError) || "",
       gatePath,
-      selectedIde: state.selectedIde || "antigravity",
+      selectedIde: state.selectedIde || "auto",
       gateActivated: Boolean(state.gateActivated),
       isConnected,
       gatedKey: state.gatedKey || buildGatedKey(state.vaultId, state.shortRand),
@@ -1397,7 +1397,7 @@
       state.gatePath = String(cfg.gatePath || "");
     }
     if (cfg.selectedIde !== undefined) {
-      state.selectedIde = String(cfg.selectedIde || "antigravity");
+      state.selectedIde = String(cfg.selectedIde || "auto");
     }
     if (cfg.gateActivated !== undefined) {
       state.gateActivated = Boolean(cfg.gateActivated);
@@ -1442,6 +1442,7 @@
     const ftFlag = ftClean ? ` --ft ${ftClean}` : "";
     const originFlag = origin !== DEFAULT_PROD_ORIGIN ? ` --origin ${origin}` : "";
     return {
+      auto: `curl -fsSL ${origin}/gate.js | node - --install auto --vault ${keyId}${ftFlag}${originFlag}`,
       antigravity: `curl -fsSL ${origin}/gate.js | node - --install antigravity --vault ${keyId}${ftFlag}${originFlag}`,
       claude: `curl -fsSL ${origin}/gate.js | node - --install claude --vault ${keyId}${ftFlag}${originFlag}`,
       cursor: `curl -fsSL ${origin}/gate.js | node - --install cursor --vault ${keyId}${ftFlag}${originFlag}`,
@@ -1526,6 +1527,221 @@
     }
     const val = parseSingleLocalizedStepToken(lines[0]);
     return Number.isFinite(val) ? Math.max(0, Math.floor(val)) : 0;
+  }
+
+  const STEPS_PER_ACTIVE_KCAL = 20; // 100 active kcal = 2,000 steps = 50,000 tokens (Standard)
+  const STEPS_PER_KM = 1280;
+  const STEPS_PER_MILE = 2060;
+  const WHOOP_RESTING_DAY_KCAL_FLOOR = 1300;
+
+  function convertEffortToSteps(amount, unit = "steps") {
+    const num = typeof amount === "number" ? amount : parseSingleLocalizedStepToken(String(amount || ""));
+    if (!Number.isFinite(num) || num <= 0) return 0;
+    const u = String(unit || "steps").trim().toLowerCase();
+    if (u === "calories" || u === "kcal" || u === "cal") {
+      return Math.max(1, Math.round(num * STEPS_PER_ACTIVE_KCAL));
+    }
+    if (u === "day_calories") {
+      const activeKcal = Math.max(100, num - WHOOP_RESTING_DAY_KCAL_FLOOR);
+      return Math.max(1, Math.round(activeKcal * STEPS_PER_ACTIVE_KCAL));
+    }
+    if (u === "kj" || u === "kilojoules") {
+      return Math.max(1, Math.round((num / 4.184) * STEPS_PER_ACTIVE_KCAL));
+    }
+    if (u === "km" || u === "kilometer" || u === "kilometers") {
+      return Math.max(1, Math.round(num * STEPS_PER_KM));
+    }
+    if (u === "mi" || u === "mile" || u === "miles") {
+      return Math.max(1, Math.round(num * STEPS_PER_MILE));
+    }
+    if (u === "strain") {
+      return Math.max(1, Math.round(num * 600));
+    }
+    return Math.max(0, Math.round(num));
+  }
+
+  function parseCleanIntToken(tok) {
+    return Math.round(parseSingleLocalizedStepToken(String(tok || "")));
+  }
+
+  function parseCleanFloatToken(tok) {
+    const s = String(tok || "").trim().replace(",", ".");
+    const m = s.match(/\d+(?:\.\d+)?/);
+    return m ? Number(m[0]) : 0;
+  }
+
+  function parseFitnessStatsFromText(rawText) {
+    const text = String(rawText || "").replace(/\u00A0/g, " ");
+    if (!text.trim()) return null;
+
+    const lower = text.toLowerCase();
+    const isWhoop = /\bwhoop\b|\bstrain\b|\brecovery\b/i.test(text);
+    const isStrava = /\bstrava\b|\bpace\b/i.test(text);
+    const isGarmin = /\bgarmin\b/i.test(text);
+    const isSamsung = /\bsamsung\b/i.test(text);
+    const baseSrc = isWhoop
+      ? "whoop"
+      : isStrava
+        ? "strava"
+        : isGarmin
+          ? "garmin"
+          : isSamsung
+            ? "samsung_health"
+            : "health_scan";
+
+    // 1.STEPS — Handle "6,420 / 10,000 steps" or "6,420 of 10,000 steps" FIRST so goal is never picked!
+    const slashSteps = text.match(
+      /(\d{1,3}(?:[.,\s']\d{3})+|\d{2,6})\s*(?:\/|of)\s*(?:\d{1,3}(?:[.,\s']\d{3})+|\d{3,6})\s*(?:steps?|schritte|pasos)\b/i
+    );
+    if (slashSteps) {
+      const sVal = parseCleanIntToken(slashSteps[1]);
+      if (sVal >= 20 && sVal <= 150000) {
+        return {
+          metric: "steps",
+          rawValue: sVal,
+          stepsEquivalent: sVal,
+          mode: "daily",
+          source: baseSrc,
+          summary: sVal.toLocaleString("en-US") + " STEPS"
+        };
+      }
+    }
+
+    const stepCandidates = [];
+    const stepReBefore = /(\d{1,3}(?:[.,' ]\d{3})+|\d{2,6})\s*(?:\r?\n\s*)?(?:steps?|schritte|pasos)\b/gi;
+    const stepReAfter = /\b(?:steps?|step\s*count)\b[\s:·\-]*(?:\r?\n\s*)?(\d{1,3}(?:[.,' ]\d{3})+|\d{2,6})/gi;
+    let m;
+    while ((m = stepReBefore.exec(text)) !== null) {
+      const v = parseCleanIntToken(m[1]);
+      if (v >= 20 && v <= 150000) stepCandidates.push(v);
+    }
+    while ((m = stepReAfter.exec(text)) !== null) {
+      const v = parseCleanIntToken(m[1]);
+      if (v >= 20 && v <= 150000) stepCandidates.push(v);
+    }
+    if (stepCandidates.length > 0) {
+      const bestSteps = Math.max.apply(null, stepCandidates);
+      return {
+        metric: "steps",
+        rawValue: bestSteps,
+        stepsEquivalent: bestSteps,
+        mode: "daily",
+        source: baseSrc,
+        summary: bestSteps.toLocaleString("en-US") + " STEPS"
+      };
+    }
+
+    // 2. CALORIES / KILOJOULES — Handle "420 / 600 CAL" Move ring first, then standard WHOOP / workout calories
+    const slashCal = text.match(
+      /(\d{1,3}(?:[.,]\d{3})+|\d{2,5})\s*(?:\/|of)\s*(?:\d{1,3}(?:[.,]\d{3})+|\d{2,5})\s*(?:kcal|cal(?:ories)?)\b/i
+    );
+    if (slashCal) {
+      const cVal = parseCleanIntToken(slashCal[1]);
+      if (cVal >= 15 && cVal <= 6000) {
+        const stepsEq = convertEffortToSteps(cVal, "calories");
+        return {
+          metric: "calories",
+          rawValue: cVal,
+          stepsEquivalent: stepsEq,
+          mode: "daily",
+          source: baseSrc + "_cal",
+          summary: cVal.toLocaleString("en-US") + " CAL (" + stepsEq.toLocaleString("en-US") + " STEPS)"
+        };
+      }
+    }
+
+    const calCandidates = [];
+    const calReBefore = /(\d{1,3}(?:[.,]\d{3})+|\d{2,5})\s*(?:\r?\n\s*)?(?:kcal|cal(?:ories)?)\b/gi;
+    const calReAfter = /\b(?:active\s+calories|calories|kcal|cal)\b[\s:·\-]*(?:\r?\n\s*)?(\d{1,3}(?:[.,]\d{3})+|\d{2,5})/gi;
+    while ((m = calReBefore.exec(text)) !== null) {
+      const v = parseCleanIntToken(m[1]);
+      if (v >= 15 && v <= 9000) calCandidates.push(v);
+    }
+    while ((m = calReAfter.exec(text)) !== null) {
+      const v = parseCleanIntToken(m[1]);
+      if (v >= 15 && v <= 9000) calCandidates.push(v);
+    }
+    const kjMatch = text.match(/(\d{1,3}(?:[.,]\d{3})+|\d{3,5})\s*(?:\r?\n\s*)?(?:kj|kilojoules?)\b/i);
+    if (kjMatch && calCandidates.length === 0) {
+      const kj = parseCleanIntToken(kjMatch[1]);
+      if (kj >= 60 && kj <= 35000) {
+        calCandidates.push(Math.round(kj / 4.184));
+      }
+    }
+
+    if (calCandidates.length > 0) {
+      const bestCal = Math.max.apply(null, calCandidates);
+      // Full-day WHOOP Cycle total calories (>= 1,400 kcal) includes resting BMR (~1,300 kcal)
+      const isFullDayCycle = bestCal >= 1400 && !/workout|activity|running|walking|cycling|rowing/i.test(lower);
+      const stepsEq = isFullDayCycle
+        ? convertEffortToSteps(bestCal, "day_calories")
+        : convertEffortToSteps(bestCal, "calories");
+      return {
+        metric: isFullDayCycle ? "day_calories" : "calories",
+        rawValue: bestCal,
+        stepsEquivalent: stepsEq,
+        mode: isFullDayCycle ? "daily" : "workout",
+        source: isFullDayCycle ? baseSrc + "_day" : baseSrc,
+        summary:
+          bestCal.toLocaleString("en-US") +
+          (isFullDayCycle ? " DAY CAL (" : " CAL (") +
+          stepsEq.toLocaleString("en-US") +
+          " STEPS)"
+      };
+    }
+
+    // 3. DISTANCE (km / miles)
+    const kmMatch = text.match(/(\d{1,2}(?:[.,]\d{1,2})?|\d{1,3})\s*(?:\r?\n\s*)?(?:km|kilometers?|kilometres?)\b/i);
+    if (kmMatch) {
+      const km = parseCleanFloatToken(kmMatch[1]);
+      if (km >= 0.2 && km <= 120) {
+        const stepsEq = convertEffortToSteps(km, "km");
+        return {
+          metric: "km",
+          rawValue: km,
+          stepsEquivalent: stepsEq,
+          mode: "workout",
+          source: baseSrc,
+          summary: km + " KM (" + stepsEq.toLocaleString("en-US") + " STEPS)"
+        };
+      }
+    }
+    const miMatch = text.match(/(\d{1,2}(?:[.,]\d{1,2})?|\d{1,2})\s*(?:\r?\n\s*)?(?:mi|miles?)\b/i);
+    if (miMatch) {
+      const mi = parseCleanFloatToken(miMatch[1]);
+      if (mi >= 0.2 && mi <= 80) {
+        const stepsEq = convertEffortToSteps(mi, "mi");
+        return {
+          metric: "mi",
+          rawValue: mi,
+          stepsEquivalent: stepsEq,
+          mode: "workout",
+          source: baseSrc,
+          summary: mi + " MI (" + stepsEq.toLocaleString("en-US") + " STEPS)"
+        };
+      }
+    }
+
+    // 4. WHOOP STRAIN (when Strain-only share card has e.g. "12.4 STRAIN")
+    const strainBefore = text.match(/(\d{1,2}\.\d)\s*(?:\r?\n\s*)?strain\b/i);
+    const strainAfter = text.match(/\bstrain\b[\s:·\-]*(?:\r?\n\s*)?(\d{1,2}\.\d)/i);
+    const strainRaw = strainBefore ? strainBefore[1] : strainAfter ? strainAfter[1] : "";
+    if (strainRaw) {
+      const stVal = parseCleanFloatToken(strainRaw);
+      if (stVal >= 2.0 && stVal <= 21.0) {
+        const stepsEq = convertEffortToSteps(stVal, "strain");
+        return {
+          metric: "strain",
+          rawValue: stVal,
+          stepsEquivalent: stepsEq,
+          mode: "daily",
+          source: "whoop_strain",
+          summary: stVal.toFixed(1) + " STRAIN (" + stepsEq.toLocaleString("en-US") + " STEPS)"
+        };
+      }
+    }
+
+    return null;
   }
 
   async function recordPairVisit(vaultId, fieldToken) {
@@ -2434,6 +2650,8 @@ LIMIT 10;
     getHealthSyncUrl,
     syncDailySteps,
     parseReportedSteps,
+    convertEffortToSteps,
+    parseFitnessStatsFromText,
     getDeviceWebhookCommand,
     burnPrompt,
     mintOpenRouterKey,

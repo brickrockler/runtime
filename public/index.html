@@ -11,21 +11,21 @@
   <meta property="og:url" content="https://runtime-jackcolley.web.app/" />
   <meta property="og:title" content="RUNTIME — Burn Calories to Burn Tokens" />
   <meta property="og:description" content="Oh, you wanna burn some tokens? Not until you burn some calories, punk." />
-  <meta property="og:image" content="https://runtime-jackcolley.web.app/og-card.png?v=23" />
+  <meta property="og:image" content="https://runtime-jackcolley.web.app/og-card.png?v=24" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
   <meta property="og:image:alt" content="RUNTIME — Oh, you wanna burn some tokens? Not until you burn some calories, punk." />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="RUNTIME — Burn Calories to Burn Tokens" />
   <meta name="twitter:description" content="Oh, you wanna burn some tokens? Not until you burn some calories, punk." />
-  <meta name="twitter:image" content="https://runtime-jackcolley.web.app/og-card.png?v=23" />
+  <meta name="twitter:image" content="https://runtime-jackcolley.web.app/og-card.png?v=24" />
   <meta name="theme-color" content="#000000" />
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=23" />
-  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=23" />
-  <link rel="manifest" href="/manifest.webmanifest?v=23" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=24" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=24" />
+  <link rel="manifest" href="/manifest.webmanifest?v=24" />
   <link rel="preload" href="/fonts/ibm-plex-mono-700.woff2" as="font" type="font/woff2" crossorigin />
   <link rel="preload" href="/fonts/silkscreen-400.woff2" as="font" type="font/woff2" crossorigin />
-  <link rel="stylesheet" href="/styles.css?v=23" />
+  <link rel="stylesheet" href="/styles.css?v=24" />
 </head>
 <body>
   <div id="preloader" class="preloader" role="status" aria-label="Loading Runtime" hidden>
@@ -212,13 +212,13 @@
       <div class="steps-layout">
         <!-- Mobile-First Direct On-Phone Card (Visible on <=768px) -->
         <div class="grid-frame steps-mobile-direct-card">
-          <h3 class="steps-panel-title">Count steps right on this phone</h3>
+          <h3 class="steps-panel-title">Walk with this phone or sync WHOOP / Watch</h3>
           <p class="steps-panel-copy">
-            Pick how you track walks — start your pocket step counter now, or link Apple Watch, WHOOP, Oura, Garmin, Fitbit, or Strava.
+            Count pocket steps right in your browser, or drop a screenshot or calorie count from WHOOP, Google Fit, Samsung Health, Garmin, Strava, or Apple Watch.
           </p>
           <div class="steps-mobile-btn-stack">
-            <button type="button" class="hw-btn cta-giant" id="steps-open-walk-btn"><span class="btn-lbl"><span class="nw">[ START</span> POCKET STEP <span class="nw">COUNTER -&gt; ]</span></span></button>
-            <button type="button" class="hw-btn--blackwire cta-giant" id="steps-open-health-btn"><span class="btn-lbl"><span class="nw">[ LINK</span> APPLE WATCH OR <span class="nw">HEALTH -&gt; ]</span></span></button>
+            <button type="button" class="hw-btn cta-giant" id="steps-open-walk-btn"><span class="btn-lbl"><span class="nw">[ START</span> POCKET <span class="nw">COUNTER -&gt; ]</span></span></button>
+            <button type="button" class="hw-btn--blackwire cta-giant" id="steps-open-health-btn"><span class="btn-lbl"><span class="nw">[ SYNC</span> WHOOP OR <span class="nw">WATCH -&gt; ]</span></span></button>
           </div>
         </div>
 
@@ -251,7 +251,7 @@
           <div class="steps-desktop-instruction">
             <h3 class="steps-panel-title">Point your phone camera at the QR code</h3>
             <p class="steps-panel-copy">
-              Opens your personal step counter in Safari or Chrome — no app store download or account needed. Walk with your phone in your pocket, or connect Apple Watch, WHOOP, Oura, Garmin, Fitbit, or Strava on your phone.
+              Opens your step counter in Chrome or Safari — no app download or login needed. Walk with your phone in your pocket, or log WHOOP, Garmin, Samsung Health, or Apple Watch on your phone or right here.
             </p>
           </div>
 
@@ -261,12 +261,13 @@
               <span id="steps-conn-label" class="steps-conn-title">WAITING FOR PHONE...</span>
             </div>
             <p id="steps-conn-sub" class="steps-conn-sub">
-              0 steps synced yet · You can set up Step 2 right now and walk right after.
+              0 steps synced yet · Set up Step 2 now, or log a WHOOP or watch workout below.
             </p>
           </div>
 
           <div class="steps-next-row">
             <button type="button" class="hw-btn cta-giant" id="steps-next-btn"><span class="btn-lbl"><span class="nw">[ NEXT:</span> CONNECT YOUR <span class="nw">GATE -&gt; ]</span></span></button>
+            <button type="button" class="hw-btn--blackwire cta-giant" id="steps-log-desktop-btn"><span class="btn-lbl"><span class="nw">[ LOG</span> WHOOP / <span class="nw">WATCH ]</span></span></button>
           </div>
         </div>
       </div>
@@ -338,7 +339,8 @@
               </div>
               <div class="gate-step-body">
                 <div class="ide-tabs" role="radiogroup" aria-label="Coding tool">
-                  <button type="button" role="radio" class="chip-btn setup-ide-tab is-active" data-ide="antigravity" aria-checked="true" tabindex="0">ANTIGRAVITY</button>
+                  <button type="button" role="radio" class="chip-btn setup-ide-tab is-active" data-ide="auto" aria-checked="true" tabindex="0">AUTO (ALL)</button>
+                  <button type="button" role="radio" class="chip-btn setup-ide-tab" data-ide="antigravity" aria-checked="false" tabindex="-1">ANTIGRAVITY</button>
                   <button type="button" role="radio" class="chip-btn setup-ide-tab" data-ide="claude" aria-checked="false" tabindex="-1">CLAUDE CODE</button>
                   <button type="button" role="radio" class="chip-btn setup-ide-tab" data-ide="cursor" aria-checked="false" tabindex="-1">CURSOR</button>
                   <button type="button" role="radio" class="chip-btn setup-ide-tab" data-ide="codex" aria-checked="false" tabindex="-1">CODEX</button>
@@ -364,7 +366,7 @@
                   </div>
                   <button type="button" class="hw-btn cmd-copy-inline-btn" id="setup-copy-ide-btn">[ COPY COMMAND ]</button>
                 </div>
-                <p class="gate-step-helper">
+                <p id="setup-ide-live-status" class="gate-step-helper" role="status" aria-live="polite">
                   On Mac, press <kbd>Cmd</kbd>+<kbd>Space</kbd>, type <strong>Terminal</strong>, paste, and press <kbd>Enter</kbd>.
                 </p>
               </div>
@@ -513,7 +515,7 @@
         </div>
 
         <div class="pure-tracker-actions">
-          <button type="button" class="hw-btn console-mobile-walk-btn" id="console-walk-btn"><span class="btn-lbl"><span class="nw">[ OPEN</span> STEP <span class="nw">COUNTER -&gt; ]</span></span></button>
+          <button type="button" class="hw-btn" id="console-walk-btn"><span class="btn-lbl"><span class="nw">[ + LOG</span> WALK / <span class="nw">WHOOP ]</span></span></button>
           <button type="button" class="hw-btn" id="console-qr-btn">[ SCAN PHONE QR ]</button>
           <button type="button" class="hw-btn--blackwire" id="console-copy-key-btn" hidden><span class="btn-lbl"><span class="nw">[ COPY</span> <span class="nw">GATED KEY ]</span></span></button>
           <button type="button" class="hw-btn--blackwire" id="console-reconfig-btn">[ SETUP ]</button>
@@ -523,7 +525,7 @@
       </div>
     </section>
 
-    <!-- SCREEN 7: PHONE STEP COUNTER (#walk) -->
+    <!-- SCREEN 7: PHONE STEP COUNTER & WHOOP / WATCH CHECK-IN (#walk) -->
     <section id="screen-walk" class="screen screen--dark" hidden aria-labelledby="walk-heading">
       <div class="terminal-bay walk-shell">
         <div class="walk-topbar">
@@ -534,7 +536,7 @@
         <p id="walk-pair-status" class="walk-status" role="status" aria-live="polite">READY TO COUNT STEPS</p>
 
         <!-- Clean 2-Mode Switcher -->
-        <div class="walk-mode-tabs" role="tablist" aria-label="How you want to track steps">
+        <div class="walk-mode-tabs" role="tablist" aria-label="How you want to track walks">
           <button
             type="button"
             role="tab"
@@ -545,7 +547,7 @@
             aria-controls="walk-panel-phone"
             tabindex="0"
           >
-            WALK WITH PHONE
+            POCKET COUNTER
           </button>
           <button
             type="button"
@@ -557,11 +559,11 @@
             aria-controls="walk-panel-health"
             tabindex="-1"
           >
-            APPLE WATCH / HEALTH
+            WHOOP / WATCH
           </button>
         </div>
 
-        <!-- MODE 1: WALK WITH PHONE (Instant Pocket Pedometer) -->
+        <!-- MODE 1: POCKET COUNTER (Instant Browser Motion Pedometer + OLED Pocket Lock) -->
         <div id="walk-panel-phone" class="walk-panel" role="tabpanel" aria-labelledby="walk-mode-phone-btn">
           <div class="walk-counter-box">
             <div id="walk-step-count" class="walk-big-digits">0</div>
@@ -575,116 +577,109 @@
             <button type="button" class="hw-btn hw-btn--red cta-giant walk-full-btn" id="walk-sensor-btn">
               <span id="walk-sensor-label">[ START WALKING ]</span>
             </button>
+            <button type="button" class="hw-btn hw-btn--wire walk-full-btn walk-dim-btn" id="walk-pocket-dim-btn" hidden>
+              [ POCKET LOCK — DIM SCREEN ]
+            </button>
           </div>
 
-          <p class="walk-pocket-hint">
-            Tap start and keep this screen open in your hand or pocket while you walk.
+          <p class="walk-pocket-hint" id="walk-pocket-hint">
+            Tap start and drop your phone in your pocket while you walk — no extra app needed.
           </p>
         </div>
 
-        <!-- MODE 2: APPLE WATCH / HEALTH (1 -> 2 -> 3 Guided Cards) -->
+        <!-- MODE 2: WHOOP / WATCH / ANY FITNESS APP (Zero Tasker, Zero App Install!) -->
         <div id="walk-panel-health" class="walk-panel" role="tabpanel" aria-labelledby="walk-mode-health-btn" hidden>
-          <p class="walk-health-lead">
-            Sync today&rsquo;s steps from Apple Watch, WHOOP, Oura, Garmin, Fitbit, Strava — or your iPhone&rsquo;s built-in Apple Health step counter (works with your screen locked).
-          </p>
-
-          <div class="walk-os-switch" role="radiogroup" aria-label="Phone operating system">
-            <button type="button" role="radio" id="walk-os-ios-btn" class="walk-os-btn is-active" data-walk-os="ios" aria-checked="true" tabindex="0">
-              IPHONE · APPLE HEALTH
-            </button>
-            <button type="button" role="radio" id="walk-os-android-btn" class="walk-os-btn" data-walk-os="android" aria-checked="false" tabindex="-1">
-              ANDROID · HEALTH CONNECT
-            </button>
+          <div class="walk-health-balance-bar" id="walk-health-balance" role="status" aria-live="polite">
+            0 STEPS BANKED · 0 TOKENS AVAILABLE
           </div>
 
           <div class="walk-step-stack">
-            <!-- STEP 1 -->
-            <div class="walk-step-card">
+            <!-- CARD 1: 1-TAP SCREENSHOT SCANNER -->
+            <div class="walk-step-card walk-scan-card" id="walk-scan-dropzone">
               <div class="walk-step-head">
                 <span class="walk-step-num" aria-hidden="true">1</span>
-                <h3 class="walk-step-title">COPY YOUR PERSONAL SYNC LINK</h3>
+                <h3 class="walk-step-title">SCAN A SCREENSHOT</h3>
               </div>
               <p class="walk-step-desc">
-                Updates your Runtime step balance with today&rsquo;s total steps.
+                Snap today&rsquo;s screen from <strong>WHOOP</strong>, <strong>Google Fit</strong>, <strong>Samsung Health</strong>, <strong>Garmin</strong>, <strong>Fitbit</strong>, <strong>Strava</strong>, or <strong>Apple Fitness</strong> — read privately on your device.
               </p>
-              <button type="button" class="hw-btn hw-btn--red walk-full-btn" id="walk-copy-health-btn">
-                <span id="walk-copy-health-label">[ COPY MY SYNC LINK ]</span>
+              <input id="walk-screenshot-input" type="file" accept="image/*" hidden />
+              <button type="button" class="hw-btn hw-btn--red cta-giant walk-full-btn" id="walk-scan-btn">
+                <span id="walk-scan-btn-label"><span class="nw">[ SCAN</span> WHOOP / HEALTH <span class="nw">SCREENSHOT ]</span></span>
               </button>
+              <p id="walk-scan-status" class="walk-step-tip" role="status" aria-live="polite">
+                Tip: You can also paste <span class="nw">(<kbd>Cmd</kbd>+<kbd>V</kbd>)</span> a screenshot, or tap <strong>Share -&gt; Runtime</strong> on Android after adding Runtime to your Home Screen.
+              </p>
             </div>
 
-            <!-- IPHONE STEPS 2 & 3 -->
-            <div id="walk-steps-ios" class="walk-os-steps">
-              <div class="walk-step-card">
-                <div class="walk-step-head">
-                  <span class="walk-step-num" aria-hidden="true">2</span>
-                  <h3 class="walk-step-title">CREATE A NEW SHORTCUT</h3>
-                </div>
-                <p class="walk-step-desc">
-                  Tap below to open the built-in <strong>Shortcuts</strong> app straight to a new shortcut.
-                </p>
-                <a href="shortcuts://create-shortcut" class="hw-btn hw-btn--wire walk-full-btn" id="walk-open-shortcuts-btn">
-                  <span class="btn-lbl"><span class="nw">[ NEW</span> SHORTCUT IN SHORTCUTS <span class="nw">APP -&gt; ]</span></span>
-                </a>
+            <!-- CARD 2: INSTANT WRIST / APP CHECK-IN (STEPS, CALORIES, OR KM) -->
+            <div class="walk-step-card">
+              <div class="walk-step-head">
+                <span class="walk-step-num" aria-hidden="true">2</span>
+                <h3 class="walk-step-title">OR ENTER FROM YOUR WRIST</h3>
               </div>
 
-              <div class="walk-step-card">
-                <div class="walk-step-head">
-                  <span class="walk-step-num" aria-hidden="true">3</span>
-                  <h3 class="walk-step-title">ADD THESE 3 ACTIONS IN ORDER</h3>
+              <div class="walk-unit-switch" role="radiogroup" aria-label="Check-in unit">
+                <button type="button" role="radio" id="walk-unit-steps-btn" class="walk-os-btn is-active" data-walk-unit="steps" aria-checked="true" tabindex="0">
+                  TODAY&rsquo;S STEPS
+                </button>
+                <button type="button" role="radio" id="walk-unit-cal-btn" class="walk-os-btn" data-walk-unit="calories" aria-checked="false" tabindex="-1">
+                  CALORIES
+                </button>
+                <button type="button" role="radio" id="walk-unit-km-btn" class="walk-os-btn" data-walk-unit="km" aria-checked="false" tabindex="-1">
+                  KM
+                </button>
+              </div>
+
+              <form id="walk-quick-form" class="walk-quick-form" novalidate>
+                <label for="walk-quick-input" class="sr-only">Steps, calories, or kilometers</label>
+                <input
+                  id="walk-quick-input"
+                  type="text"
+                  inputmode="decimal"
+                  class="walk-quick-input"
+                  placeholder="6,400 steps"
+                  autocomplete="off"
+                />
+                <button type="button" class="hw-btn hw-btn--red walk-quick-go-btn" id="walk-quick-submit-btn">
+                  [ SYNC ]
+                </button>
+              </form>
+
+              <p id="walk-quick-hint" class="walk-step-tip">
+                Syncs only new steps added today — enter your latest total anytime without double-counting.
+              </p>
+
+              <div class="walk-preset-row" aria-label="One-tap workout presets">
+                <button type="button" class="hw-btn hw-btn--wire walk-preset-chip" id="walk-preset-1k" data-preset-unit="add_steps" data-preset-val="1000">+1,000 STEPS</button>
+                <button type="button" class="hw-btn hw-btn--wire walk-preset-chip" id="walk-preset-cal" data-preset-unit="calories" data-preset-val="250">+250 CAL</button>
+                <button type="button" class="hw-btn hw-btn--wire walk-preset-chip" id="walk-preset-km" data-preset-unit="km" data-preset-val="3">+3 KM</button>
+              </div>
+            </div>
+
+            <!-- CARD 3: OPTIONAL COLLAPSED AUTO-SYNC LINK (IPHONE SHORTCUTS / WEBHOOK) -->
+            <details class="walk-auto-details" id="walk-auto-details">
+              <summary>Automatic sync link (iPhone Shortcuts or URL)</summary>
+              <div class="walk-auto-body">
+                <p class="walk-step-desc">
+                  Copy your personal sync URL to update steps or calories automatically from iPhone Shortcuts or any script (<code>&amp;steps=6400</code> or <code>&amp;calories=350</code>).
+                </p>
+                <div class="walk-auto-btns">
+                  <button type="button" class="hw-btn hw-btn--red walk-full-btn" id="walk-copy-health-btn">
+                    <span id="walk-copy-health-label">[ COPY MY SYNC LINK ]</span>
+                  </button>
+                  <a href="shortcuts://create-shortcut" class="hw-btn hw-btn--wire walk-full-btn" id="walk-open-shortcuts-btn">
+                    <span class="btn-lbl"><span class="nw">[ OPEN</span> IPHONE SHORTCUTS <span class="nw">APP -&gt; ]</span></span>
+                  </a>
                 </div>
                 <div class="walk-action-list">
                   <div class="walk-action-row">
-                    <div class="walk-action-name">1. Find Health Samples</div>
-                    <div class="walk-action-detail">Type: <strong>Steps</strong> · tap <strong>+ Add Filter</strong> -&gt; <strong>Start Date</strong> is <strong>Today</strong> · tap <strong>&gt;</strong> (Show More) -&gt; <strong>Group by: Day</strong></div>
-                  </div>
-                  <div class="walk-action-row">
-                    <div class="walk-action-name">2. Calculate Statistics</div>
-                    <div class="walk-action-detail">Tap <em>Average</em> and change it to <strong>Sum</strong> of Health Samples</div>
-                  </div>
-                  <div class="walk-action-row">
-                    <div class="walk-action-name">3. Open URLs</div>
-                    <div class="walk-action-detail">Paste your sync link, then tap <strong>Calculation Result</strong> (or <strong>Sum</strong>) above the keyboard right after <code>steps=</code></div>
-                  </div>
-                </div>
-                <p class="walk-step-tip">
-                  Tap Play (&#9654;) once and choose <strong>Turn On All -&gt; Allow</strong> on the Health prompt. Add to your Home Screen or trigger when closing Fitness/Health while unlocked.
-                </p>
-              </div>
-            </div>
-
-            <!-- ANDROID STEPS 2 & 3 -->
-            <div id="walk-steps-android" class="walk-os-steps" hidden>
-              <div class="walk-step-card">
-                <div class="walk-step-head">
-                  <span class="walk-step-num" aria-hidden="true">2</span>
-                  <h3 class="walk-step-title">OPEN MACRODROID OR TASKER</h3>
-                </div>
-                <p class="walk-step-desc">
-                  Connect <strong>Health Connect</strong> (Pixel Watch, Samsung, Garmin, Fitbit, Oura) and tap <strong>+</strong> to create a macro.
-                </p>
-              </div>
-
-              <div class="walk-step-card">
-                <div class="walk-step-head">
-                  <span class="walk-step-num" aria-hidden="true">3</span>
-                  <h3 class="walk-step-title">ADD THESE 3 ITEMS</h3>
-                </div>
-                <div class="walk-action-list">
-                  <div class="walk-action-row">
-                    <div class="walk-action-name">1. Shortcut or App Trigger</div>
-                    <div class="walk-action-detail">Run from a <strong>Home Screen shortcut</strong> or when closing your fitness app</div>
-                  </div>
-                  <div class="walk-action-row">
-                    <div class="walk-action-name">2. Read Health Connect</div>
-                    <div class="walk-action-detail">Read today&rsquo;s <strong>Steps</strong> total into a local variable</div>
-                  </div>
-                  <div class="walk-action-row">
-                    <div class="walk-action-name">3. Open Website</div>
-                    <div class="walk-action-detail">Open your sync link in browser with your <strong>steps variable</strong> right after <code>steps=</code></div>
+                    <div class="walk-action-name">iPhone Apple Health Shortcut (3 actions)</div>
+                    <div class="walk-action-detail">1. <strong>Find Health Samples</strong> (Steps, Start Date is Today, Group by Day) -&gt; 2. <strong>Calculate Statistics</strong> (Sum) -&gt; 3. <strong>Open URLs</strong> (paste sync link + Sum after <code>steps=</code>).</div>
                   </div>
                 </div>
               </div>
-            </div>
+            </details>
           </div>
         </div>
 
@@ -706,18 +701,26 @@
         <span class="qr-bezel-tag">SCAN WITH PHONE CAMERA</span>
         <div id="modal-qr-slot" class="qr-frame"></div>
       </div>
-      <p class="qr-modal-sub">Count steps in your pocket right now, or set up Apple Watch or Health sync on your phone.</p>
+      <p class="qr-modal-sub">Count pocket steps right in Chrome or Safari, or scan a WHOOP or watch screenshot.</p>
       <div class="qr-modal-actions">
         <button type="button" class="hw-btn hw-btn--red" id="qr-modal-copy-btn">[ COPY PHONE LINK ]</button>
       </div>
     </div>
   </div>
 
+  <!-- OLED Pocket Dim Shield (Zero accidental pocket touches + near-zero OLED battery) -->
+  <div id="pocket-dim-shield" class="pocket-dim-shield" hidden aria-label="Pocket lock active, double tap to wake">
+    <div class="pocket-dim-inner">
+      <div id="pocket-dim-steps" class="pocket-dim-steps">0 STEPS</div>
+      <div class="pocket-dim-sub">COUNTING IN POCKET · DOUBLE-TAP TO WAKE</div>
+    </div>
+  </div>
+
   <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
-  <script src="/qr-mini.js?v=23"></script>
-  <script src="/vault-engine.js?v=23"></script>
-  <script src="/app.js?v=23"></script>
-  <script src="/sticky-notes.js?v=23"></script>
+  <script src="/qr-mini.js?v=24"></script>
+  <script src="/vault-engine.js?v=24"></script>
+  <script src="/app.js?v=24"></script>
+  <script src="/sticky-notes.js?v=24"></script>
 </body>
 </html>

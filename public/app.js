@@ -21,7 +21,13 @@
   let gateSubView = "picker"; // "picker" | "walkthrough"
   let walkOpenedFromSteps = false;
   let activePath = "ide"; // "ide" (Local Agent) | "openrouter" (OpenRouter Key)
-  let activeIde = "antigravity";
+  let activeIde = "auto";
+  let walkQuickUnit = "steps"; // "steps" | "calories" | "km"
+  let ocrWorkerPromise = null;
+  let ocrScriptPromise = null;
+  let pocketDimActive = false;
+  let lastPocketDimTapAt = 0;
+  let linearAccelSensor = null;
   let calcStepsPreview = 1000;
   let chaseTick = 0;
   let chaseTurboTicks = 0;
@@ -598,6 +604,8 @@
   ];
 
   const IDE_EXPLANATIONS = {
+    auto:
+      "Automatically finds Antigravity, Claude Code, Cursor, and Codex on your computer and locks them when your token balance hits zero.",
     antigravity:
       "Stops Antigravity from running new actions when your token balance hits zero, and unlocks as soon as you walk.",
     claude:
@@ -609,6 +617,7 @@
   };
 
   const IDE_TECH_NOTES = {
+    auto: "Checks ~/.gemini, ~/.claude, ~/.cursor, and ~/.codex (existing settings stay untouched)",
     antigravity: "Config file: ~/.gemini/config/hooks.json (existing settings stay untouched)",
     claude: "Config file: ~/.claude/settings.json (existing settings stay untouched)",
     cursor: "Config file: ~/.cursor/hooks.json (existing settings stay untouched)",
@@ -985,6 +994,9 @@
       let syncVaultId = (sp.get("sync") || "").trim();
       let fieldToken = (sp.get("ft") || "").trim();
       let stepsParam = sp.get("steps");
+      let calParam = sp.get("calories") || sp.get("kcal") || sp.get("cal");
+      let kmParam = sp.get("km") || sp.get("distance");
+      let sharedParam = sp.get("shared");
       let hasStepsKey = sp.has("steps");
       let sourceParam = (sp.get("source") || "").trim();
       if (!pairVaultId && !syncVaultId && window.location.hash && window.location.hash.includes("?")) {
@@ -994,6 +1006,9 @@
         syncVaultId = (hp.get("sync") || "").trim();
         fieldToken = fieldToken || (hp.get("ft") || "").trim();
         stepsParam = stepsParam !== null ? stepsParam : hp.get("steps");
+        calParam = calParam !== null ? calParam : (hp.get("calories") || hp.get("kcal") || hp.get("cal"));
+        kmParam = kmParam !== null ? kmParam : (hp.get("km") || hp.get("distance"));
+        sharedParam = sharedParam !== null ? sharedParam : hp.get("shared");
         hasStepsKey = hasStepsKey || hp.has("steps");
         sourceParam = (hp.get("source") || sourceParam).trim();
       }
@@ -1008,6 +1023,9 @@
         rawUrlPairVaultId: pairVaultId,
         fieldToken: fieldToken || sessionPairContext.fieldToken,
         stepsParam,
+        calParam,
+        kmParam,
+        sharedParam,
         hasStepsKey,
         sourceParam: sourceParam || sessionPairContext.sourceParam || ""
       };
@@ -1019,6 +1037,9 @@
         rawUrlPairVaultId: "",
         fieldToken: sessionPairContext.fieldToken,
         stepsParam: null,
+        calParam: null,
+        kmParam: null,
+        sharedParam: null,
         hasStepsKey: false,
         sourceParam: sessionPairContext.sourceParam || ""
       };
@@ -1319,16 +1340,16 @@
   function renderIdeSnippets() {
     if (!window.RuntimeGate) return;
     const snippets = window.RuntimeGate.getSnippets();
-    const cmd = snippets[activeIde] || snippets.antigravity || "";
+    const cmd = snippets[activeIde] || snippets.auto || snippets.antigravity || "";
 
     if ($("setup-ide-cmd")) $("setup-ide-cmd").textContent = cmd;
     if ($("setup-ide-explain")) {
       $("setup-ide-explain").textContent =
-        IDE_EXPLANATIONS[activeIde] || IDE_EXPLANATIONS.antigravity;
+        IDE_EXPLANATIONS[activeIde] || IDE_EXPLANATIONS.auto;
     }
     if ($("setup-ide-tech-note")) {
       $("setup-ide-tech-note").textContent =
-        IDE_TECH_NOTES[activeIde] || IDE_TECH_NOTES.antigravity;
+        IDE_TECH_NOTES[activeIde] || IDE_TECH_NOTES.auto;
     }
 
     document.querySelectorAll(".setup-ide-tab").forEach((tab) => {
@@ -1499,8 +1520,8 @@
       }
       if (connSub) {
         connSub.textContent = isMobileViewport
-          ? "Start your pocket counter above, or jump straight to Step 2 and walk right after."
-          : "0 steps synced yet · You can set up Step 2 right now and walk right after.";
+          ? "Start your pocket counter or WHOOP check-in above, or jump straight to Step 2."
+          : "0 steps synced yet · Set up Step 2 now, or log a WHOOP or watch workout below.";
       }
     }
   }
@@ -1653,6 +1674,37 @@
       }
     }
 
+    const ideLiveEl = $("setup-ide-live-status");
+    if (ideLiveEl) {
+      const agentDevs = Array.isArray(st.devices)
+        ? st.devices.filter((d) => /^agent_/i.test(String(d || "").trim()))
+        : [];
+      if (agentDevs.length > 0) {
+        const names = agentDevs
+          .map((d) => String(d).replace(/^agent_/i, "").replace(/_/g, " ").toUpperCase())
+          .join(", ");
+        ideLiveEl.classList.add("is-installed");
+        ideLiveEl.textContent = "CONNECTED — BLOCKER INSTALLED ON YOUR COMPUTER (" + names + ") \u2713";
+      } else if (ideLiveEl.classList.contains("is-installed")) {
+        ideLiveEl.classList.remove("is-installed");
+        ideLiveEl.innerHTML =
+          "On Mac, press <kbd>Cmd</kbd>+<kbd>Space</kbd>, type <strong>Terminal</strong>, paste, and press <kbd>Enter</kbd>.";
+      }
+    }
+
+    if ($("walk-health-balance")) {
+      $("walk-health-balance").textContent =
+        formatInt(st.stepsTotal) +
+        " STEPS BANKED \u00B7 " +
+        (isOrView ? formatUsd(st.creditAvailableUsd) + " CREDIT" : formatInt(st.tokensAvailable) + " TOKENS") +
+        " AVAILABLE";
+    }
+
+    if ($("pocket-dim-steps")) {
+      const dimTotal = Math.max(syncedWalkSteps + pendingWalkSteps, Number(st.stepsTotal || 0));
+      $("pocket-dim-steps").textContent = formatInt(dimTotal) + " STEPS";
+    }
+
     renderIdeSnippets();
     renderCalculator();
   }
@@ -1673,20 +1725,48 @@
   let pauseConfirmArmedUntil = 0;
   let pauseConfirmResetTimer = null;
 
+  function openPocketDimShield() {
+    const shield = $("pocket-dim-shield");
+    if (!shield) return;
+    pocketDimActive = true;
+    lastPocketDimTapAt = 0;
+    const stNow = window.RuntimeGate ? window.RuntimeGate.getState() : null;
+    if ($("pocket-dim-steps")) {
+      const shown = Math.max(syncedWalkSteps + pendingWalkSteps, stNow ? Number(stNow.stepsTotal || 0) : 0);
+      $("pocket-dim-steps").textContent = formatInt(shown) + " STEPS";
+    }
+    shield.hidden = false;
+    setBackgroundInert(true);
+    syncStickyDockVisibility();
+    playHwTick(520, 8);
+  }
+
+  function closePocketDimShield() {
+    const shield = $("pocket-dim-shield");
+    if (!shield || shield.hidden) {
+      pocketDimActive = false;
+      return;
+    }
+    pocketDimActive = false;
+    shield.hidden = true;
+    setBackgroundInert(false);
+    syncStickyDockVisibility();
+    playHwTick(960, 10);
+  }
+
   function syncStickyDockVisibility() {
-    const pocketLocked = currentScreen === "walk" && motionActive;
+    const hideDock = (currentScreen === "walk" && motionActive) || pocketDimActive;
     if (typeof document !== "undefined" && document.body) {
-      document.body.classList.toggle("is-pocket-locked", pocketLocked);
-      [".topbar", "#walk-back-btn", ".walk-mode-tabs", "#walk-continue-wrap"].forEach((sel) => {
-        const el = document.querySelector(sel);
-        if (el) el.inert = pocketLocked;
-      });
+      document.body.classList.toggle("is-pocket-locked", pocketDimActive);
+    }
+    if ($("walk-pocket-dim-btn")) {
+      $("walk-pocket-dim-btn").hidden = !(currentScreen === "walk" && walkActiveMode === "phone" && motionActive);
     }
     if (
       window.RuntimeStickyNotes &&
       typeof window.RuntimeStickyNotes.setDockHidden === "function"
     ) {
-      window.RuntimeStickyNotes.setDockHidden(pocketLocked);
+      window.RuntimeStickyNotes.setDockHidden(hideDock);
     }
   }
 
@@ -1745,37 +1825,55 @@
     }
     if (phonePanel) phonePanel.hidden = walkActiveMode !== "phone";
     if (healthPanel) healthPanel.hidden = walkActiveMode !== "health";
+    syncStickyDockVisibility();
   }
 
-  function setWalkHealthOs(os, moveFocus) {
-    walkHealthOs = os === "android" ? "android" : "ios";
-    const iosBtn = $("walk-os-ios-btn");
-    const androidBtn = $("walk-os-android-btn");
-    const iosSteps = $("walk-steps-ios");
-    const androidSteps = $("walk-steps-android");
+  function setWalkQuickUnit(unit, moveFocus) {
+    walkQuickUnit = unit === "calories" ? "calories" : unit === "km" ? "km" : "steps";
+    const unitDefs = [
+      { id: "walk-unit-steps-btn", key: "steps" },
+      { id: "walk-unit-cal-btn", key: "calories" },
+      { id: "walk-unit-km-btn", key: "km" }
+    ];
+    unitDefs.forEach((u) => {
+      const btn = $(u.id);
+      if (!btn) return;
+      const active = walkQuickUnit === u.key;
+      btn.classList.toggle("is-active", active);
+      btn.setAttribute("aria-checked", active ? "true" : "false");
+      btn.setAttribute("tabindex", active ? "0" : "-1");
+      if (moveFocus && active) btn.focus();
+    });
 
-    if (iosBtn) {
-      const isIos = walkHealthOs === "ios";
-      iosBtn.classList.toggle("is-active", isIos);
-      iosBtn.setAttribute("aria-checked", isIos ? "true" : "false");
-      iosBtn.setAttribute("tabindex", isIos ? "0" : "-1");
-      if (moveFocus && isIos) iosBtn.focus();
+    const inp = $("walk-quick-input");
+    const hint = $("walk-quick-hint");
+    const goBtn = $("walk-quick-submit-btn");
+    if (walkQuickUnit === "calories") {
+      if (inp) inp.placeholder = "350 cal";
+      if (hint) {
+        hint.textContent =
+          "WHOOP, Watch, or gym workout: 100 active cal = 2,000 steps (50,000 tokens).";
+      }
+      if (goBtn) goBtn.textContent = "[ + ADD ]";
+    } else if (walkQuickUnit === "km") {
+      if (inp) inp.placeholder = "4.5 km";
+      if (hint) {
+        hint.textContent = "1 km = 1,280 steps (32,000 tokens). Decimals like 3.5 work too.";
+      }
+      if (goBtn) goBtn.textContent = "[ + ADD ]";
+    } else {
+      if (inp) inp.placeholder = "6,400 steps";
+      if (hint) {
+        hint.textContent =
+          "Syncs only new steps added today — enter your latest total anytime without double-counting.";
+      }
+      if (goBtn) goBtn.textContent = "[ SYNC ]";
     }
-    if (androidBtn) {
-      const isAndroid = walkHealthOs === "android";
-      androidBtn.classList.toggle("is-active", isAndroid);
-      androidBtn.setAttribute("aria-checked", isAndroid ? "true" : "false");
-      androidBtn.setAttribute("tabindex", isAndroid ? "0" : "-1");
-      if (moveFocus && isAndroid) androidBtn.focus();
-    }
-    if (iosSteps) iosSteps.hidden = walkHealthOs !== "ios";
-    if (androidSteps) androidSteps.hidden = walkHealthOs !== "android";
-    resetHealthCopyButtonLabel();
   }
 
   function buildWalkHealthSyncUrl() {
     const { pairVaultId, syncVaultId, fieldToken } = getUrlSyncAndPairParams();
-    const src = walkHealthOs === "android" ? "google_health" : "apple_health";
+    const src = walkHealthOs === "android" ? "whoop_android" : "apple_health";
     const pairedVault = pairVaultId || syncVaultId;
     if (pairedVault) {
       const ft = fieldToken || window.RuntimeGate.getState().fieldToken;
@@ -1795,8 +1893,7 @@
 
   function handleCopyWalkHealthLink() {
     const url = buildWalkHealthSyncUrl();
-    const src = walkHealthOs === "android" ? "google_health" : "apple_health";
-    copyText(url, formatSourceName(src) + " SYNC LINK COPIED");
+    copyText(url, "SYNC LINK COPIED");
 
     const btn = $("walk-copy-health-btn");
     const lbl = $("walk-copy-health-label");
@@ -1809,6 +1906,456 @@
       if (btn) btn.classList.remove("is-copied");
       if (lbl) lbl.textContent = "[ COPY MY SYNC LINK ]";
     }, 4000);
+  }
+
+  async function creditParsedEffort(spec) {
+    if (!spec || !window.RuntimeGate) return null;
+    const stepsEq = Math.max(0, Math.round(Number(spec.stepsEquivalent || 0)));
+    if (stepsEq <= 0) return null;
+
+    if (gateInitPromise) {
+      await gateInitPromise.catch(() => {});
+    }
+
+    const { pairVaultId, syncVaultId, fieldToken } = getUrlSyncAndPairParams();
+    const targetVault = pairVaultId || syncVaultId;
+    const stBefore = window.RuntimeGate.getState();
+    const effVault = targetVault || stBefore.vaultId;
+    const effFt = fieldToken || stBefore.fieldToken;
+    const src = spec.source || "whoop";
+
+    if (spec.mode === "daily") {
+      const res = await window.RuntimeGate.syncDailySteps(effVault, effFt, stepsEq, src);
+      syncedWalkSteps = Math.max(syncedWalkSteps, Number(res.reportedToday || 0));
+      const nextSt = window.RuntimeGate.getState();
+      renderState(nextSt);
+      renderWalkCounters(
+        res.stepsAdded > 0
+          ? spec.summary + " -> +" + formatInt(res.stepsAdded) + " NEW STEPS UNLOCKED"
+          : spec.summary + " -> UP TO DATE TODAY"
+      );
+      playHwTick(1320, 14);
+      return {
+        stepsAdded: Number(res.stepsAdded || 0),
+        reportedToday: Number(res.reportedToday || stepsEq),
+        mode: "daily",
+        summary: spec.summary || formatInt(stepsEq) + " STEPS"
+      };
+    }
+
+    if (targetVault && window.RuntimeGate.postFieldSteps) {
+      const res = await window.RuntimeGate.postFieldSteps(targetVault, effFt, stepsEq, src);
+      syncedWalkSteps += stepsEq;
+      if (res && res.state) renderState(res.state);
+      else renderState(window.RuntimeGate.getState());
+    } else {
+      const nextSt = await window.RuntimeGate.addSteps(stepsEq, src);
+      syncedWalkSteps += stepsEq;
+      renderState(nextSt);
+    }
+    renderWalkCounters(spec.summary + " -> +" + formatInt(stepsEq) + " STEPS UNLOCKED");
+    playHwTick(1320, 14);
+    return {
+      stepsAdded: stepsEq,
+      reportedToday: syncedWalkSteps,
+      mode: "workout",
+      summary: spec.summary || "+" + formatInt(stepsEq) + " STEPS"
+    };
+  }
+
+  async function handleQuickCheckInSubmit() {
+    const inp = $("walk-quick-input");
+    const hint = $("walk-quick-hint");
+    const raw = String(inp ? inp.value : "").trim();
+    if (!raw) {
+      if (inp) inp.focus();
+      showToast("ENTER A NUMBER FIRST");
+      return;
+    }
+
+    let spec = null;
+    if (/[a-zA-Z]/.test(raw) && window.RuntimeGate.parseFitnessStatsFromText) {
+      spec = window.RuntimeGate.parseFitnessStatsFromText(raw);
+    }
+    if (!spec) {
+      const cleanNum = Number(
+        raw
+          .replace(/(\d)[,\s\u00A0'](?!\d{1,2}$)(?=\d{3}(\D|$))/g, "$1")
+          .replace(",", ".")
+          .replace(/[^0-9.]/g, "")
+      );
+      if (!Number.isFinite(cleanNum) || cleanNum <= 0) {
+        if (hint) hint.textContent = "Enter a valid number above zero (for example 6400 or 350).";
+        showToast("ENTER A VALID NUMBER");
+        return;
+      }
+      if (walkQuickUnit === "calories") {
+        const stepsEq = window.RuntimeGate.convertEffortToSteps(cleanNum, "calories");
+        spec = {
+          metric: "calories",
+          rawValue: cleanNum,
+          stepsEquivalent: stepsEq,
+          mode: "workout",
+          source: "whoop_cal",
+          summary: formatInt(cleanNum) + " CAL (" + formatInt(stepsEq) + " STEPS)"
+        };
+      } else if (walkQuickUnit === "km") {
+        const stepsEq = window.RuntimeGate.convertEffortToSteps(cleanNum, "km");
+        spec = {
+          metric: "km",
+          rawValue: cleanNum,
+          stepsEquivalent: stepsEq,
+          mode: "workout",
+          source: "watch_km",
+          summary: cleanNum + " KM (" + formatInt(stepsEq) + " STEPS)"
+        };
+      } else {
+        const stepsEq = Math.round(cleanNum);
+        spec = {
+          metric: "steps",
+          rawValue: stepsEq,
+          stepsEquivalent: stepsEq,
+          mode: "daily",
+          source: walkHealthOs === "android" ? "android_steps" : "watch_steps",
+          summary: formatInt(stepsEq) + " STEPS"
+        };
+      }
+    }
+
+    try {
+      const outcome = await creditParsedEffort(spec);
+      if (!outcome) return;
+      if (inp) inp.value = "";
+      if (hint) {
+        hint.textContent =
+          outcome.stepsAdded > 0
+            ? "SYNCED: " + outcome.summary + " -> +" + formatInt(outcome.stepsAdded) + " STEPS UNLOCKED \u2713"
+            : "UP TO DATE: " + formatInt(outcome.reportedToday) + " steps already banked today.";
+      }
+      showToast(
+        outcome.stepsAdded > 0
+          ? "+" + formatInt(outcome.stepsAdded) + " STEPS UNLOCKED"
+          : "TODAY'S STEPS ALREADY UP TO DATE"
+      );
+    } catch (err) {
+      const msg = err && err.message ? err.message : String(err);
+      if (hint) hint.textContent = "SYNC ERROR: " + msg;
+      showToast("SYNC ERROR");
+    }
+  }
+
+  async function handleQuickPresetClick(presetUnit, presetVal) {
+    const val = Number(presetVal || 0);
+    if (!Number.isFinite(val) || val <= 0 || !window.RuntimeGate) return;
+    let spec = null;
+    if (presetUnit === "calories") {
+      const stepsEq = window.RuntimeGate.convertEffortToSteps(val, "calories");
+      spec = {
+        metric: "calories",
+        rawValue: val,
+        stepsEquivalent: stepsEq,
+        mode: "workout",
+        source: "whoop_cal",
+        summary: "+" + formatInt(val) + " CAL (" + formatInt(stepsEq) + " STEPS)"
+      };
+    } else if (presetUnit === "km") {
+      const stepsEq = window.RuntimeGate.convertEffortToSteps(val, "km");
+      spec = {
+        metric: "km",
+        rawValue: val,
+        stepsEquivalent: stepsEq,
+        mode: "workout",
+        source: "watch_km",
+        summary: "+" + val + " KM (" + formatInt(stepsEq) + " STEPS)"
+      };
+    } else {
+      spec = {
+        metric: "steps",
+        rawValue: val,
+        stepsEquivalent: Math.round(val),
+        mode: "workout",
+        source: "quick_walk",
+        summary: "+" + formatInt(val) + " STEPS"
+      };
+    }
+    try {
+      const outcome = await creditParsedEffort(spec);
+      if (outcome && $("walk-quick-hint")) {
+        $("walk-quick-hint").textContent =
+          "ADDED: " + outcome.summary + " -> +" + formatInt(outcome.stepsAdded) + " STEPS UNLOCKED \u2713";
+      }
+      if (outcome) {
+        showToast("+" + formatInt(outcome.stepsAdded) + " STEPS UNLOCKED");
+      }
+    } catch (_) {
+      showToast("SYNC ERROR");
+    }
+  }
+
+  /* ---------------- On-Device Screenshot Scanner (Native TextDetector + Local WASM OCR) ---------------- */
+
+  function loadImageElementFromBlob(blob) {
+    return new Promise((resolve, reject) => {
+      if (typeof createImageBitmap === "function") {
+        createImageBitmap(blob).then(resolve, () => {
+          fallbackImgTag(blob, resolve, reject);
+        });
+      } else {
+        fallbackImgTag(blob, resolve, reject);
+      }
+    });
+  }
+
+  function fallbackImgTag(blob, resolve, reject) {
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(img);
+    };
+    img.onerror = (e) => {
+      URL.revokeObjectURL(url);
+      reject(e || new Error("Could not decode image"));
+    };
+    img.src = url;
+  }
+
+  function buildOcrCanvases(imgSource) {
+    const srcW = Math.max(1, Number(imgSource.width || imgSource.naturalWidth || 1));
+    const srcH = Math.max(1, Number(imgSource.height || imgSource.naturalHeight || 1));
+    const maxEdge = Math.max(srcW, srcH);
+    let scale = 1;
+    if (maxEdge > 1500) scale = 1500 / maxEdge;
+    else if (maxEdge < 750) scale = Math.min(2.2, 1100 / maxEdge);
+
+    const w = Math.max(16, Math.round(srcW * scale));
+    const h = Math.max(16, Math.round(srcH * scale));
+
+    const rawCanvas = document.createElement("canvas");
+    rawCanvas.width = w;
+    rawCanvas.height = h;
+    const rawCtx = rawCanvas.getContext("2d", { willReadFrequently: true });
+    rawCtx.fillStyle = "#ffffff";
+    rawCtx.fillRect(0, 0, w, h);
+    rawCtx.drawImage(imgSource, 0, 0, w, h);
+
+    const cleanCanvas = document.createElement("canvas");
+    cleanCanvas.width = w;
+    cleanCanvas.height = h;
+    const cleanCtx = cleanCanvas.getContext("2d", { willReadFrequently: true });
+    const imgData = rawCtx.getImageData(0, 0, w, h);
+    const data = imgData.data;
+
+    let lumSum = 0;
+    const pxCount = Math.max(1, w * h);
+    for (let i = 0; i < data.length; i += 4) {
+      lumSum += 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+    }
+    const meanLum = lumSum / pxCount;
+    const isDarkScreen = meanLum < 132;
+
+    for (let i = 0; i < data.length; i += 4) {
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+      const maxCh = Math.max(r, g, b);
+      let lum = isDarkScreen
+        ? Math.max(0.299 * r + 0.587 * g + 0.114 * b, maxCh * 0.88)
+        : 0.299 * r + 0.587 * g + 0.114 * b;
+      if (isDarkScreen) {
+        lum = 255 - lum;
+      }
+      let stretched = (lum - 90) * 1.65 + 128;
+      if (stretched < 0) stretched = 0;
+      if (stretched > 255) stretched = 255;
+      const v = Math.round(stretched);
+      data[i] = v;
+      data[i + 1] = v;
+      data[i + 2] = v;
+      data[i + 3] = 255;
+    }
+    cleanCtx.putImageData(imgData, 0, 0);
+    return { rawCanvas, cleanCanvas, isDarkScreen };
+  }
+
+  function ensureTesseractScriptLoaded() {
+    if (window.Tesseract && typeof window.Tesseract.createWorker === "function") {
+      return Promise.resolve(window.Tesseract);
+    }
+    if (ocrScriptPromise) return ocrScriptPromise;
+    ocrScriptPromise = new Promise((resolve, reject) => {
+      const s = document.createElement("script");
+      s.src = "/ocr/tesseract.min.js?v=24";
+      s.async = true;
+      s.onload = () => {
+        if (window.Tesseract) resolve(window.Tesseract);
+        else reject(new Error("OCR library failed to initialize"));
+      };
+      s.onerror = () => {
+        ocrScriptPromise = null;
+        reject(new Error("Could not load on-device OCR bundle"));
+      };
+      document.head.appendChild(s);
+    });
+    return ocrScriptPromise;
+  }
+
+  async function getLocalOcrWorker() {
+    if (ocrWorkerPromise) return ocrWorkerPromise;
+    ocrWorkerPromise = (async () => {
+      const Tesseract = await ensureTesseractScriptLoaded();
+      const baseOrigin = window.location.origin;
+      return Tesseract.createWorker("eng", 1, {
+        workerPath: baseOrigin + "/ocr/worker.min.js",
+        corePath: baseOrigin + "/ocr",
+        langPath: baseOrigin + "/ocr",
+        gzip: true
+      });
+    })().catch((err) => {
+      ocrWorkerPromise = null;
+      throw err;
+    });
+    return ocrWorkerPromise;
+  }
+
+  async function scanHealthScreenshotFile(fileOrBlob) {
+    if (!fileOrBlob || !window.RuntimeGate) return false;
+    if (currentScreen !== "walk") {
+      walkOpenedFromSteps = currentScreen === "steps";
+      setWalkMode("health");
+      showScreen("walk", true);
+    } else if (walkActiveMode !== "health") {
+      setWalkMode("health");
+    }
+
+    const scanBtn = $("walk-scan-btn");
+    const scanLbl = $("walk-scan-btn-label");
+    const statusEl = $("walk-scan-status");
+    if (scanBtn) scanBtn.disabled = true;
+    if (scanLbl) scanLbl.textContent = "[ READING SCREENSHOT... ]";
+    if (statusEl) {
+      statusEl.textContent = "Reading steps & calories privately on your device...";
+    }
+
+    try {
+      const imgSource = await loadImageElementFromBlob(fileOrBlob);
+      const { rawCanvas, cleanCanvas } = buildOcrCanvases(imgSource);
+      if (typeof imgSource.close === "function") {
+        try {
+          imgSource.close();
+        } catch (_) {}
+      }
+
+      let parsed = null;
+
+      if (typeof window.TextDetector === "function") {
+        try {
+          const detector = new window.TextDetector();
+          const rawBlocks = await detector.detect(rawCanvas);
+          const rawText = Array.isArray(rawBlocks)
+            ? rawBlocks.map((b) => b.rawValue || "").join("\n")
+            : "";
+          parsed = window.RuntimeGate.parseFitnessStatsFromText(rawText);
+          if (!parsed) {
+            const invBlocks = await detector.detect(cleanCanvas);
+            const invText = Array.isArray(invBlocks)
+              ? invBlocks.map((b) => b.rawValue || "").join("\n")
+              : "";
+            parsed = window.RuntimeGate.parseFitnessStatsFromText(invText);
+          }
+        } catch (_) {}
+      }
+
+      if (!parsed) {
+        const worker = await getLocalOcrWorker();
+        const resClean = await worker.recognize(cleanCanvas);
+        const textClean = (resClean && resClean.data && resClean.data.text) || "";
+        parsed = window.RuntimeGate.parseFitnessStatsFromText(textClean);
+        if (!parsed) {
+          const resRaw = await worker.recognize(rawCanvas);
+          const textRaw = (resRaw && resRaw.data && resRaw.data.text) || "";
+          parsed = window.RuntimeGate.parseFitnessStatsFromText(textRaw + "\n" + textClean);
+        }
+      }
+
+      if (!parsed || !parsed.stepsEquivalent) {
+        if (statusEl) {
+          statusEl.textContent =
+            "Couldn't spot steps, calories, or km in that screenshot — crop closer to the number or enter it in Box 2 below.";
+        }
+        showToast("ENTER NUMBER IN BOX 2 BELOW");
+        return false;
+      }
+
+      const outcome = await creditParsedEffort(parsed);
+      if (outcome && statusEl) {
+        statusEl.textContent =
+          outcome.stepsAdded > 0
+            ? "SCANNED " + outcome.summary + " -> +" + formatInt(outcome.stepsAdded) + " STEPS UNLOCKED \u2713"
+            : "SCANNED " + outcome.summary + " -> TODAY'S TOTAL ALREADY SYNCED (" + formatInt(outcome.reportedToday) + " STEPS)";
+      }
+      if (outcome) {
+        showToast(
+          outcome.stepsAdded > 0
+            ? "+" + formatInt(outcome.stepsAdded) + " STEPS UNLOCKED"
+            : "ALREADY UP TO DATE TODAY"
+        );
+      }
+      return Boolean(outcome);
+    } catch (err) {
+      const msg = err && err.message ? err.message : String(err);
+      if (statusEl) {
+        statusEl.textContent = "SCAN ERROR: " + msg + " — enter your steps or calories in Box 2 below.";
+      }
+      showToast("COULDN'T SCAN — ENTER BELOW");
+      return false;
+    } finally {
+      if (scanBtn) scanBtn.disabled = false;
+      if (scanLbl) {
+        scanLbl.innerHTML = '<span class="nw">[ SCAN</span> WHOOP / HEALTH <span class="nw">SCREENSHOT ]</span>';
+      }
+    }
+  }
+
+  async function consumeAndroidShareTargetIfPresent() {
+    if (typeof caches === "undefined") return false;
+    try {
+      const cache = await caches.open("runtime-share-target-v1");
+      const metaRes = await cache.match(new Request("/__shared_meta__"));
+      const imgRes = await cache.match(new Request("/__shared_image__"));
+      await cache.delete(new Request("/__shared_meta__"));
+      await cache.delete(new Request("/__shared_image__"));
+
+      setWalkMode("health");
+      showScreen("walk", false);
+      history.replaceState({ screen: "walk" }, "", window.location.pathname + "#walk");
+
+      if (metaRes) {
+        const meta = await metaRes.json().catch(() => null);
+        if (meta && (meta.title || meta.text)) {
+          const textParsed = window.RuntimeGate.parseFitnessStatsFromText(
+            (meta.title || "") + "\n" + (meta.text || "")
+          );
+          if (textParsed && textParsed.stepsEquivalent > 0) {
+            const outcome = await creditParsedEffort(textParsed);
+            if (outcome && $("walk-scan-status")) {
+              $("walk-scan-status").textContent =
+                "SHARED " + outcome.summary + " -> +" + formatInt(outcome.stepsAdded) + " STEPS UNLOCKED \u2713";
+            }
+            if (outcome) showToast("+" + formatInt(outcome.stepsAdded) + " STEPS SHARED");
+            return true;
+          }
+        }
+      }
+
+      if (imgRes) {
+        const blob = await imgRes.blob();
+        if (blob && blob.size > 0) {
+          return await scanHealthScreenshotFile(blob);
+        }
+      }
+    } catch (_) {}
+    return false;
   }
 
   async function acquireScreenWakeLock() {
@@ -1850,6 +2397,10 @@
     const totalShown = syncedWalkSteps + pendingWalkSteps;
     if ($("walk-step-count")) {
       $("walk-step-count").textContent = formatInt(totalShown);
+    }
+    if ($("pocket-dim-steps")) {
+      const dimTotal = Math.max(totalShown, Number(stNow.stepsTotal || 0));
+      $("pocket-dim-steps").textContent = formatInt(dimTotal) + " STEPS";
     }
     const confirmedCalc = window.RuntimeGate.calculateSteps(syncedWalkSteps, stNow.tokensPerStep);
     if ($("walk-credit-sent")) {
@@ -1934,40 +2485,9 @@
     }
   }
 
-  function handleMotionSample(ev) {
-    const acc = ev && ev.accelerationIncludingGravity;
-    if (
-      !acc ||
-      typeof acc.x !== "number" ||
-      !Number.isFinite(acc.x) ||
-      typeof acc.y !== "number" ||
-      !Number.isFinite(acc.y) ||
-      typeof acc.z !== "number" ||
-      !Number.isFinite(acc.z)
-    ) {
-      return;
-    }
-    numericMotionSampleSeen = true;
-
-    const mag = Math.sqrt(acc.x * acc.x + acc.y * acc.y + acc.z * acc.z);
-    if (!Number.isFinite(mag) || mag <= 0.1) return;
-
+  function processDynamicStepDelta(dyn, waveMag) {
     const now = Date.now();
-    const dtSample =
-      lastMotionSampleAt > 0
-        ? Math.min(0.25, Math.max(0.005, (now - lastMotionSampleAt) / 1000))
-        : 0.016;
-    lastMotionSampleAt = now;
-
-    if (gEst === 0) {
-      gEst = mag;
-    } else {
-      const alpha = 1 - Math.exp(-dtSample / 0.8);
-      gEst = (1 - alpha) * gEst + alpha * mag;
-    }
-
-    const dyn = mag - gEst;
-    updateWalkWave(mag);
+    updateWalkWave(waveMag);
 
     if (lastPeakTime > 0 && now - lastPeakTime > 2200) {
       inWalkingCadence = false;
@@ -2003,6 +2523,80 @@
     }
   }
 
+  function handleMotionSample(ev) {
+    if (linearAccelSensor && linearAccelSensor.__hasReading) return;
+    const acc = ev && ev.accelerationIncludingGravity;
+    if (
+      !acc ||
+      typeof acc.x !== "number" ||
+      !Number.isFinite(acc.x) ||
+      typeof acc.y !== "number" ||
+      !Number.isFinite(acc.y) ||
+      typeof acc.z !== "number" ||
+      !Number.isFinite(acc.z)
+    ) {
+      return;
+    }
+    numericMotionSampleSeen = true;
+
+    const mag = Math.sqrt(acc.x * acc.x + acc.y * acc.y + acc.z * acc.z);
+    if (!Number.isFinite(mag) || mag <= 0.1) return;
+
+    const now = Date.now();
+    const dtSample =
+      lastMotionSampleAt > 0
+        ? Math.min(0.25, Math.max(0.005, (now - lastMotionSampleAt) / 1000))
+        : 0.016;
+    lastMotionSampleAt = now;
+
+    if (gEst === 0) {
+      gEst = mag;
+    } else {
+      const alpha = 1 - Math.exp(-dtSample / 0.8);
+      gEst = (1 - alpha) * gEst + alpha * mag;
+    }
+
+    processDynamicStepDelta(mag - gEst, mag);
+  }
+
+  function attachLinearAccelSensorIfAvailable() {
+    stopLinearAccelSensor();
+    if (typeof window === "undefined" || typeof window.LinearAccelerationSensor !== "function") {
+      return;
+    }
+    try {
+      const sensor = new window.LinearAccelerationSensor({ frequency: 30 });
+      sensor.__hasReading = false;
+      sensor.addEventListener("reading", () => {
+        if (!motionActive) return;
+        const x = Number(sensor.x || 0);
+        const y = Number(sensor.y || 0);
+        const z = Number(sensor.z || 0);
+        if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) return;
+        sensor.__hasReading = true;
+        numericMotionSampleSeen = true;
+        const linMag = Math.sqrt(x * x + y * y + z * z);
+        processDynamicStepDelta(linMag - 0.35, 9.81 + linMag);
+      });
+      sensor.addEventListener("error", () => {
+        stopLinearAccelSensor();
+      });
+      sensor.start();
+      linearAccelSensor = sensor;
+    } catch (_) {
+      linearAccelSensor = null;
+    }
+  }
+
+  function stopLinearAccelSensor() {
+    if (linearAccelSensor) {
+      try {
+        linearAccelSensor.stop();
+      } catch (_) {}
+      linearAccelSensor = null;
+    }
+  }
+
   function stopMotionPedometer() {
     if (!motionActive) return;
     motionActive = false;
@@ -2011,7 +2605,9 @@
       clearTimeout(pauseConfirmResetTimer);
       pauseConfirmResetTimer = null;
     }
+    closePocketDimShield();
     syncStickyDockVisibility();
+    stopLinearAccelSensor();
     window.removeEventListener("devicemotion", handleMotionSample);
     releaseScreenWakeLock();
     flushPendingWalkSteps();
@@ -2023,6 +2619,63 @@
       $("walk-pair-status").textContent = "STEP COUNTER PAUSED";
     }
     showToast("STEP COUNTER PAUSED");
+  }
+
+  function startMotionPedometerDirect(silentToast) {
+    if (motionActive) return;
+    motionActive = true;
+    pauseConfirmArmedUntil = 0;
+    numericMotionSampleSeen = false;
+    syncStickyDockVisibility();
+    if (!silentToast) playHwTick(1080, 12);
+    if ($("walk-sensor-label")) {
+      $("walk-sensor-label").textContent = "[ SENSOR LIVE — DOUBLE-TAP TO PAUSE ]";
+    }
+    if ($("walk-pair-status")) {
+      $("walk-pair-status").classList.remove("is-alert");
+      $("walk-pair-status").textContent = "COUNTING STEPS — TAP POCKET LOCK TO DIM SCREEN";
+    }
+    acquireScreenWakeLock();
+    attachLinearAccelSensorIfAvailable();
+    window.addEventListener("devicemotion", handleMotionSample);
+    if (!silentToast) showToast("STEP COUNTER ON");
+
+    setTimeout(async () => {
+      if (!motionActive || numericMotionSampleSeen || !$("walk-pair-status")) return;
+      const isMobileUa = /iphone|ipad|ipod|android/i.test(navigator.userAgent || "");
+      if (!isMobileUa) {
+        $("walk-pair-status").textContent =
+          "NO MOTION SENSOR ON COMPUTER — SCAN QR WITH PHONE OR TAP WHOOP / WATCH ABOVE";
+        return;
+      }
+      let denied = false;
+      try {
+        if (navigator.permissions && typeof navigator.permissions.query === "function") {
+          const perm = await navigator.permissions.query({ name: "accelerometer" });
+          if (perm && perm.state === "denied") denied = true;
+        }
+      } catch (_) {}
+      $("walk-pair-status").textContent = denied
+        ? "MOTION BLOCKED IN BROWSER — ALLOW MOTION IN SITE SETTINGS OR TAP WHOOP / WATCH ABOVE"
+        : "READY — WALK WITH PHONE IN POCKET, OR TAP WHOOP / WATCH ABOVE";
+    }, 1800);
+  }
+
+  function isIosMotionPermissionDevice() {
+    if (typeof navigator === "undefined") return false;
+    const ua = navigator.userAgent || "";
+    return (
+      /iphone|ipad|ipod/i.test(ua) ||
+      (navigator.platform === "MacIntel" && Number(navigator.maxTouchPoints || 0) > 1)
+    );
+  }
+
+  function startMotionPedometerAutoIfPermitted() {
+    if (motionActive) return;
+    const isAndroidUa = /android/i.test((typeof navigator !== "undefined" && navigator.userAgent) || "");
+    if (isAndroidUa && !isIosMotionPermissionDevice()) {
+      startMotionPedometerDirect(true);
+    }
   }
 
   function toggleMotionPedometer() {
@@ -2047,57 +2700,32 @@
       return;
     }
 
-    const attach = () => {
-      motionActive = true;
-      pauseConfirmArmedUntil = 0;
-      numericMotionSampleSeen = false;
-      syncStickyDockVisibility();
-      playHwTick(1080, 12);
-      if ($("walk-sensor-label")) {
-        $("walk-sensor-label").textContent = "[ SENSOR LIVE — DOUBLE-TAP TO PAUSE ]";
-      }
-      if ($("walk-pair-status")) {
-        $("walk-pair-status").classList.remove("is-alert");
-        $("walk-pair-status").textContent = "COUNTING STEPS — KEEP SCREEN OPEN";
-      }
-      acquireScreenWakeLock();
-      window.addEventListener("devicemotion", handleMotionSample);
-      showToast("STEP COUNTER ON");
-
-      setTimeout(() => {
-        if (motionActive && !numericMotionSampleSeen && $("walk-pair-status")) {
-          const isMobileUa = /iphone|ipad|ipod|android/i.test(navigator.userAgent || "");
-          $("walk-pair-status").textContent = isMobileUa
-            ? "MOTION SENSOR BLOCKED — ENABLE MOTION IN BROWSER SETTINGS OR USE APPLE WATCH / HEALTH"
-            : "NO PHONE MOTION SENSOR ON COMPUTER — SCAN QR WITH YOUR PHONE";
-        }
-      }, 1800);
-    };
-
     const onPermissionFailure = () => {
       motionActive = false;
+      syncStickyDockVisibility();
       if ($("walk-sensor-label")) {
         $("walk-sensor-label").textContent = "[ ALLOW MOTION — TAP TO RETRY ]";
       }
       if ($("walk-pair-status")) {
         $("walk-pair-status").textContent =
-          "ALLOW MOTION IN BROWSER SETTINGS, THEN TAP RETRY";
+          "ALLOW MOTION IN BROWSER SETTINGS, OR TAP WHOOP / WATCH ABOVE";
       }
       showToast("MOTION ACCESS NEEDED");
     };
 
     if (
+      isIosMotionPermissionDevice() &&
       typeof DeviceMotionEvent !== "undefined" &&
       typeof DeviceMotionEvent.requestPermission === "function"
     ) {
       DeviceMotionEvent.requestPermission()
         .then((res) => {
-          if (res === "granted" || res === "prompt") attach();
+          if (res === "granted" || res === "prompt") startMotionPedometerDirect(false);
           else onPermissionFailure();
         })
         .catch(() => onPermissionFailure());
     } else {
-      attach();
+      startMotionPedometerDirect(false);
     }
   }
 
@@ -2175,9 +2803,14 @@
   let gateInitPromise = null;
 
   async function handleIncomingHealthSyncUrl() {
-    const { rawUrlSyncVaultId, fieldToken, stepsParam, sourceParam } = getUrlSyncAndPairParams();
-    const effectiveSource = sourceParam || "apple_health";
-    if (!rawUrlSyncVaultId || stepsParam === null || stepsParam === "") return false;
+    const { rawUrlSyncVaultId, fieldToken, stepsParam, calParam, kmParam, sourceParam } =
+      getUrlSyncAndPairParams();
+    const hasSteps = stepsParam !== null && stepsParam !== "";
+    const hasCal = calParam !== null && calParam !== "";
+    const hasKm = kmParam !== null && kmParam !== "";
+    if (!rawUrlSyncVaultId || (!hasSteps && !hasCal && !hasKm)) return false;
+
+    const effectiveSource = sourceParam || (hasCal ? "whoop" : "apple_health");
     setWalkMode("phone");
     showScreen("walk", false);
     if ($("walk-pair-status")) {
@@ -2188,26 +2821,51 @@
       if (gateInitPromise) {
         await gateInitPromise.catch(() => {});
       }
-      const res = await window.RuntimeGate.syncDailySteps(
-        rawUrlSyncVaultId,
-        fieldToken,
-        stepsParam,
-        effectiveSource
-      );
-      syncedWalkSteps = res.reportedToday;
-      renderState(window.RuntimeGate.getState());
-      if ($("walk-step-count")) $("walk-step-count").textContent = formatInt(res.reportedToday);
-      const calc = window.RuntimeGate.calculateSteps(res.stepsTotal, res.tokensPerStep);
-      if ($("walk-credit-sent")) {
-        $("walk-credit-sent").textContent =
-          formatInt(calc.tokens) + " TOK (" + formatUsd(calc.usd) + ") TOTAL";
-      }
-      if ($("walk-pair-status")) {
-        $("walk-pair-status").textContent =
-          formatSourceName(effectiveSource) +
-          " CONNECTED (+" +
-          formatInt(res.stepsAdded) +
-          " NEW STEPS)";
+      if (hasSteps) {
+        const res = await window.RuntimeGate.syncDailySteps(
+          rawUrlSyncVaultId,
+          fieldToken,
+          stepsParam,
+          effectiveSource
+        );
+        syncedWalkSteps = res.reportedToday;
+        renderState(window.RuntimeGate.getState());
+        if ($("walk-step-count")) $("walk-step-count").textContent = formatInt(res.reportedToday);
+        const calc = window.RuntimeGate.calculateSteps(res.stepsTotal, res.tokensPerStep);
+        if ($("walk-credit-sent")) {
+          $("walk-credit-sent").textContent =
+            formatInt(calc.tokens) + " TOK (" + formatUsd(calc.usd) + ") TOTAL";
+        }
+        if ($("walk-pair-status")) {
+          $("walk-pair-status").textContent =
+            formatSourceName(effectiveSource) +
+            " CONNECTED (+" +
+            formatInt(res.stepsAdded) +
+            " NEW STEPS)";
+        }
+      } else {
+        const stepsEq = hasCal
+          ? window.RuntimeGate.convertEffortToSteps(calParam, "calories")
+          : window.RuntimeGate.convertEffortToSteps(kmParam, "km");
+        const res = await window.RuntimeGate.postFieldSteps(
+          rawUrlSyncVaultId,
+          fieldToken,
+          stepsEq,
+          effectiveSource
+        );
+        syncedWalkSteps += stepsEq;
+        if (res && res.state) renderState(res.state);
+        if ($("walk-step-count")) $("walk-step-count").textContent = formatInt(syncedWalkSteps);
+        const stAfter = window.RuntimeGate.getState();
+        const calc = window.RuntimeGate.calculateSteps(stAfter.stepsTotal, stAfter.tokensPerStep);
+        if ($("walk-credit-sent")) {
+          $("walk-credit-sent").textContent =
+            formatInt(calc.tokens) + " TOK (" + formatUsd(calc.usd) + ") TOTAL";
+        }
+        if ($("walk-pair-status")) {
+          $("walk-pair-status").textContent =
+            formatSourceName(effectiveSource) + " CONNECTED (+" + formatInt(stepsEq) + " STEPS)";
+        }
       }
       showToast(formatSourceName(effectiveSource) + " SYNCED");
       history.replaceState({ screen: "walk" }, "", window.location.pathname + "#walk");
@@ -2472,6 +3130,16 @@
         walkOpenedFromSteps = true;
         setWalkMode("phone");
         showScreen("walk", true);
+        startMotionPedometerAutoIfPermitted();
+      });
+    }
+
+    if ($("steps-log-desktop-btn")) {
+      $("steps-log-desktop-btn").addEventListener("click", () => {
+        playHwTick(920, 10);
+        walkOpenedFromSteps = true;
+        setWalkMode("health");
+        showScreen("walk", true);
       });
     }
 
@@ -2524,7 +3192,7 @@
     ideTabs.forEach((tab, idx) => {
       tab.addEventListener("click", () => {
         playHwTick(880, 8);
-        activeIde = tab.dataset.ide || "antigravity";
+        activeIde = tab.dataset.ide || "auto";
         window.RuntimeGate.setGateConfig({ selectedIde: activeIde });
         renderIdeSnippets();
       });
@@ -2604,8 +3272,10 @@
       $("console-walk-btn").addEventListener("click", () => {
         playHwTick(920, 10);
         walkOpenedFromSteps = false;
-        setWalkMode("phone");
+        const isMobileUa = /iphone|ipad|ipod|android/i.test(navigator.userAgent || "");
+        setWalkMode(isMobileUa ? "phone" : "health");
         showScreen("walk", true);
+        if (isMobileUa) startMotionPedometerAutoIfPermitted();
       });
     }
     if ($("console-copy-key-btn")) {
@@ -2694,8 +3364,8 @@
       }
     });
 
-    // Screen 7: Phone Step Counter (#walk)
-    setWalkHealthOs(walkHealthOs);
+    // Screen 7: Phone Step Counter & WHOOP / Watch Check-In (#walk)
+    setWalkQuickUnit(walkQuickUnit);
     setWalkMode(walkActiveMode);
 
     $("walk-back-btn").addEventListener("click", () => {
@@ -2735,44 +3405,147 @@
       });
     }
 
-    if ($("walk-os-ios-btn")) {
-      $("walk-os-ios-btn").addEventListener("click", () => {
+    const quickUnitBtns = [
+      $("walk-unit-steps-btn"),
+      $("walk-unit-cal-btn"),
+      $("walk-unit-km-btn")
+    ].filter(Boolean);
+    quickUnitBtns.forEach((uBtn, idx) => {
+      uBtn.addEventListener("click", () => {
         playHwTick(860, 8);
-        setWalkHealthOs("ios");
+        setWalkQuickUnit(uBtn.dataset.walkUnit || "steps", false);
       });
-    }
-
-    if ($("walk-os-android-btn")) {
-      $("walk-os-android-btn").addEventListener("click", () => {
-        playHwTick(860, 8);
-        setWalkHealthOs("android");
-      });
-    }
-
-    [$("walk-os-ios-btn"), $("walk-os-android-btn")].filter(Boolean).forEach((osBtn) => {
-      osBtn.addEventListener("keydown", (ev) => {
-        if (ev.key === "ArrowRight" || ev.key === "ArrowLeft" || ev.key === "ArrowDown" || ev.key === "ArrowUp") {
+      uBtn.addEventListener("keydown", (ev) => {
+        if (ev.key === "ArrowRight" || ev.key === "ArrowDown" || ev.key === "ArrowLeft" || ev.key === "ArrowUp") {
           ev.preventDefault();
-          setWalkHealthOs(walkHealthOs === "ios" ? "android" : "ios", true);
+          const dir = ev.key === "ArrowRight" || ev.key === "ArrowDown" ? 1 : -1;
+          const nextBtn = quickUnitBtns[(idx + dir + quickUnitBtns.length) % quickUnitBtns.length];
+          if (nextBtn) setWalkQuickUnit(nextBtn.dataset.walkUnit || "steps", true);
         }
       });
+    });
+
+    if ($("walk-quick-form")) {
+      $("walk-quick-form").addEventListener("submit", (ev) => {
+        ev.preventDefault();
+        handleQuickCheckInSubmit();
+      });
+    }
+    if ($("walk-quick-submit-btn")) {
+      $("walk-quick-submit-btn").addEventListener("click", handleQuickCheckInSubmit);
+    }
+
+    document.querySelectorAll(".walk-preset-chip[data-preset-unit]").forEach((chip) => {
+      chip.addEventListener("click", () => {
+        handleQuickPresetClick(chip.dataset.presetUnit, chip.dataset.presetVal);
+      });
+    });
+
+    if ($("walk-scan-btn") && $("walk-screenshot-input")) {
+      $("walk-scan-btn").addEventListener("click", () => {
+        playHwTick(900, 8);
+        $("walk-screenshot-input").value = "";
+        $("walk-screenshot-input").click();
+      });
+      $("walk-screenshot-input").addEventListener("change", () => {
+        const f = $("walk-screenshot-input").files && $("walk-screenshot-input").files[0];
+        if (f) scanHealthScreenshotFile(f);
+      });
+    }
+
+    const dropzone = $("walk-scan-dropzone");
+    if (dropzone) {
+      ["dragenter", "dragover"].forEach((evName) => {
+        dropzone.addEventListener(evName, (ev) => {
+          ev.preventDefault();
+          dropzone.classList.add("is-dragover");
+        });
+      });
+      ["dragleave", "dragend", "drop"].forEach((evName) => {
+        dropzone.addEventListener(evName, (ev) => {
+          ev.preventDefault();
+          dropzone.classList.remove("is-dragover");
+          if (evName === "drop" && ev.dataTransfer && ev.dataTransfer.files && ev.dataTransfer.files[0]) {
+            const f = ev.dataTransfer.files[0];
+            if (/^image\//i.test(f.type || "")) {
+              scanHealthScreenshotFile(f);
+            }
+          }
+        });
+      });
+    }
+
+    window.addEventListener("paste", (ev) => {
+      if (currentScreen !== "walk" && currentScreen !== "steps" && currentScreen !== "console") return;
+      const items = ev.clipboardData && ev.clipboardData.items;
+      if (!items) return;
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type && items[i].type.indexOf("image/") === 0) {
+          const blob = items[i].getAsFile();
+          if (blob) {
+            ev.preventDefault();
+            scanHealthScreenshotFile(blob);
+            return;
+          }
+        }
+      }
+    });
+
+    if ($("walk-pocket-dim-btn")) {
+      $("walk-pocket-dim-btn").addEventListener("click", openPocketDimShield);
+    }
+    if ($("pocket-dim-shield")) {
+      $("pocket-dim-shield").addEventListener("click", () => {
+        const now = Date.now();
+        if (now - lastPocketDimTapAt < 650) {
+          closePocketDimShield();
+        } else {
+          lastPocketDimTapAt = now;
+        }
+      });
+    }
+    window.addEventListener("keydown", (ev) => {
+      if (pocketDimActive && ev.key === "Escape") {
+        ev.preventDefault();
+        closePocketDimShield();
+      }
     });
 
     if ($("walk-open-shortcuts-btn")) {
       $("walk-open-shortcuts-btn").addEventListener("click", () => {
         playHwTick(920, 8);
-        // Auto-copy sync link so clipboard is guaranteed ready inside Shortcuts Step 3
         handleCopyWalkHealthLink();
       });
     }
 
     $("walk-sensor-btn").addEventListener("click", toggleMotionPedometer);
-    $("walk-copy-health-btn").addEventListener("click", handleCopyWalkHealthLink);
+    if ($("walk-copy-health-btn")) {
+      $("walk-copy-health-btn").addEventListener("click", handleCopyWalkHealthLink);
+    }
 
     function syncRouteFromUrl() {
-      const { rawUrlPairVaultId, rawUrlSyncVaultId, stepsParam, hasStepsKey, sourceParam } =
-        getUrlSyncAndPairParams();
-      if (rawUrlSyncVaultId && stepsParam !== null && stepsParam !== "") {
+      const {
+        rawUrlPairVaultId,
+        rawUrlSyncVaultId,
+        stepsParam,
+        calParam,
+        kmParam,
+        sharedParam,
+        hasStepsKey,
+        sourceParam
+      } = getUrlSyncAndPairParams();
+
+      if (sharedParam === "1") {
+        consumeAndroidShareTargetIfPresent();
+        return;
+      }
+
+      if (
+        rawUrlSyncVaultId &&
+        ((stepsParam !== null && stepsParam !== "") ||
+          (calParam !== null && calParam !== "") ||
+          (kmParam !== null && kmParam !== ""))
+      ) {
         handleIncomingHealthSyncUrl();
         return;
       }
@@ -2811,10 +3584,10 @@
           history.replaceState({ screen: "console" }, "", window.location.pathname + "#console");
         }
       } else if (rawHash === "walk" || rawUrlPairVaultId || rawUrlSyncVaultId) {
-        if (sourceParam === "google_health") {
-          setWalkHealthOs("android");
+        if (sourceParam === "google_health" || sourceParam === "whoop_android") {
+          walkHealthOs = "android";
         } else if (sourceParam === "apple_health") {
-          setWalkHealthOs("ios");
+          walkHealthOs = "ios";
         }
         const sp = new URLSearchParams(window.location.search || "");
         const modeParam = (sp.get("mode") || "").trim().toLowerCase();
@@ -2845,6 +3618,9 @@
         } else if (vId && $("walk-pair-status")) {
           $("walk-pair-status").classList.remove("is-alert");
           $("walk-pair-status").textContent = "PAIRED WITH YOUR COMPUTER";
+        }
+        if (rawUrlPairVaultId && walkActiveMode === "phone") {
+          startMotionPedometerAutoIfPermitted();
         }
       } else {
         showScreen("landing", false);

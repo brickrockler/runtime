@@ -99,9 +99,9 @@ function parseArgs(argv) {
       out.cost = Number(argv[++i]);
     } else if (a.startsWith("--cost=")) {
       out.cost = Number(a.slice(7));
-    } else if (a === "--install" && argv[i + 1]) {
+    } else if (a === "--install") {
       out.mode = "install";
-      out.target = argv[++i].toLowerCase();
+      out.target = argv[i + 1] && !argv[i + 1].startsWith("-") ? argv[++i].toLowerCase() : "auto";
     } else if (a.startsWith("--install=")) {
       out.mode = "install";
       out.target = a.slice(10).toLowerCase();
@@ -671,13 +671,17 @@ function buildHookCmdString(nodeBin, gateBin, hookTarget, cfg, cost) {
   return parts.join(" ");
 }
 
-async function installIdeHook(cfg) {
-  const home = os.homedir();
-  const nodeBin = resolveNodeBinary();
-  const gateBin = await ensureLocalGateBinary(cfg);
-  const target = cfg.target || "claude";
-  const vault = cfg.vaultId;
+function detectCandidateAgentDirs(home) {
+  const found = [];
+  if (fs.existsSync(path.join(home, ".gemini"))) found.push("antigravity");
+  if (fs.existsSync(path.join(home, ".claude"))) found.push("claude");
+  if (fs.existsSync(path.join(home, ".cursor"))) found.push("cursor");
+  if (fs.existsSync(path.join(home, ".codex"))) found.push("codex");
+  return found.length > 0 ? found : ["antigravity", "claude", "cursor", "codex"];
+}
 
+function installSingleIdeTarget(target, home, nodeBin, gateBin, cfg) {
+  const vault = cfg.vaultId;
   if (target === "antigravity") {
     const fp = path.join(home, ".gemini", "config", "hooks.json");
     const j = readJsonPreservingConfig(fp);
@@ -729,7 +733,6 @@ async function installIdeHook(cfg) {
     writeJsonSafe(fp, j);
     console.log(`INSTALLED Cursor step blocker -> ${fp}`);
   } else if (target === "codex") {
-    // 1. Native OpenAI Codex CLI UserPromptSubmit hook (~/.codex/hooks.json)
     const fp = path.join(home, ".codex", "hooks.json");
     const j = readJsonPreservingConfig(fp);
     j.hooks = j.hooks && typeof j.hooks === "object" ? j.hooks : {};
@@ -746,7 +749,6 @@ async function installIdeHook(cfg) {
     j.hooks.UserPromptSubmit = filtered;
     writeJsonSafe(fp, j);
 
-    // 2. Also install ~/.runtime/codex-gated proxy launcher for API-key sessions
     const wrapper = path.join(home, ".runtime", "codex-gated");
     const extraFlags = [
       `--codex`,
@@ -764,18 +766,36 @@ async function installIdeHook(cfg) {
     console.log(`INSTALLED Codex step blocker -> ${fp} (+ ${wrapper})`);
   } else {
     throw new Error(
-      "Unknown agent target: " + target + " (use antigravity, claude, cursor, or codex)"
+      "Unknown agent target: " + target + " (use auto, all, antigravity, claude, cursor, or codex)"
     );
   }
+}
 
-  // Persist local CLI metadata so `node ~/.runtime/gate.js --status` works with zero flags
+async function installIdeHook(cfg) {
+  const home = os.homedir();
+  const nodeBin = resolveNodeBinary();
+  const gateBin = await ensureLocalGateBinary(cfg);
+  const rawTarget = (cfg.target || "auto").toLowerCase();
+  const vault = cfg.vaultId;
+
+  const targetsToInstall =
+    rawTarget === "all"
+      ? ["antigravity", "claude", "cursor", "codex"]
+      : rawTarget === "auto"
+        ? detectCandidateAgentDirs(home)
+        : [rawTarget];
+
+  for (const t of targetsToInstall) {
+    installSingleIdeTarget(t, home, nodeBin, gateBin, cfg);
+  }
+
   try {
     const cfgPath = path.join(home, ".runtime", "config.json");
     let prev = {};
     if (fs.existsSync(cfgPath)) {
       try { prev = JSON.parse(fs.readFileSync(cfgPath, "utf8")) || {}; } catch (_) {}
     }
-    const targets = Array.from(new Set([].concat(prev.installedTargets || [], [target])));
+    const targets = Array.from(new Set([].concat(prev.installedTargets || [], targetsToInstall)));
     writeJsonSafe(cfgPath, {
       vaultId: vault,
       ft: cfg.ft || prev.ft || "",
@@ -789,9 +809,10 @@ async function installIdeHook(cfg) {
   let balanceLine = "0 steps · 0 tokens (LOCKED -- walk to unlock)";
   try {
     const st = await getVaultState(vault);
-    const agentDev = "agent_" + target;
-    const nextDevs = Array.from(new Set([].concat(st.devices || [], [agentDev])));
-    if ((st.devices || []).indexOf(agentDev) === -1) {
+    const agentDevs = targetsToInstall.map((t) => "agent_" + t);
+    const nextDevs = Array.from(new Set([].concat(st.devices || [], agentDevs)));
+    const changed = agentDevs.some((d) => (st.devices || []).indexOf(d) === -1);
+    if (changed) {
       await patchVaultState(vault, { devices: nextDevs, updatedAt: Date.now() }).catch(() => {});
     }
     const stateTag = st.tokensAvailable > 0 ? "UNLOCKED" : "LOCKED -- walk to unlock";
@@ -804,12 +825,20 @@ async function installIdeHook(cfg) {
     cursor: "CURSOR",
     codex: "CODEX"
   };
-  const headerName = toolNames[target] || target.toUpperCase();
+  const headerName =
+    targetsToInstall.length > 1
+      ? targetsToInstall.map((t) => toolNames[t] || t.toUpperCase()).join(" + ")
+      : toolNames[targetsToInstall[0]] || targetsToInstall[0].toUpperCase();
+  const titleText =
+    targetsToInstall.length > 1
+      ? `${targetsToInstall.length} AGENT BLOCKERS INSTALLED`
+      : `${headerName} BLOCKER INSTALLED`;
   console.log("┌──────────────────────────────────────────────────────────────┐");
-  console.log(`│ RUNTIME -- ${(headerName + " BLOCKER INSTALLED").padEnd(50, " ")}│`);
+  console.log(`│ RUNTIME -- ${titleText.padEnd(50, " ")}│`);
   console.log("├──────────────────────────────────────────────────────────────┤");
+  console.log(`  Agents    : ${headerName}`);
   console.log(`  Balance   : ${balanceLine}`);
-  console.log(`  Settings  : Existing ${headerName} settings kept untouched`);
+  console.log(`  Settings  : Existing agent settings kept untouched`);
   console.log(`  Next step : Return to your browser -> [ OPEN LIVE TRACKER ]`);
   console.log(`  Walk link : ${buildWalkUrl(cfg)}`);
   console.log(`  Status    : node ~/.runtime/gate.js --status`);
