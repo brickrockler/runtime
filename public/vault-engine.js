@@ -15,7 +15,7 @@
   const COOKIE_MAX_AGE_SEC = 34560000; // 400 days (browser cap for 1st-party cookies)
   const FS_PROJECT = "ee-offsite-simulation";
   const FS_COLLECTION = "runtime_v2_vaults";
-  const DEFAULT_PROD_ORIGIN = "https://runtime-jackcolley.web.app";
+  const DEFAULT_PROD_ORIGIN = "https://runtime.jackcolley.com";
   const FS_BASE =
     "https://firestore.googleapis.com/v1/projects/" +
     FS_PROJECT +

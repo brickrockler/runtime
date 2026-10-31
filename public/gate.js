@@ -3,16 +3,16 @@
  * RUNTIME — Local Agent Blocker & Step Gate (gate.js)
  *
  * Path 1 — Pure Token Local Agent Blocker (NO API key, NO money needed):
- *   curl -fsSL https://runtime-jackcolley.web.app/gate.js | node - --install antigravity --vault <ID>
- *   curl -fsSL https://runtime-jackcolley.web.app/gate.js | node - --install claude --vault <ID>
- *   curl -fsSL https://runtime-jackcolley.web.app/gate.js | node - --install cursor --vault <ID>
- *   curl -fsSL https://runtime-jackcolley.web.app/gate.js | node - --install codex --vault <ID>
- *   curl -fsSL https://runtime-jackcolley.web.app/gate.js | node - --status --vault <ID>
- *   curl -fsSL https://runtime-jackcolley.web.app/gate.js | node - --uninstall
+ *   curl -fsSL https://runtime.jackcolley.com/gate.js | node - --install antigravity --vault <ID>
+ *   curl -fsSL https://runtime.jackcolley.com/gate.js | node - --install claude --vault <ID>
+ *   curl -fsSL https://runtime.jackcolley.com/gate.js | node - --install cursor --vault <ID>
+ *   curl -fsSL https://runtime.jackcolley.com/gate.js | node - --install codex --vault <ID>
+ *   curl -fsSL https://runtime.jackcolley.com/gate.js | node - --status --vault <ID>
+ *   curl -fsSL https://runtime.jackcolley.com/gate.js | node - --uninstall
  *
  * Path 2 — Localhost HTTP Proxy / MCP Server:
- *   curl -fsSL https://runtime-jackcolley.web.app/gate.js | node - --vault <ID>
- *   curl -fsSL https://runtime-jackcolley.web.app/gate.js | node - --vault <ID> --mcp
+ *   curl -fsSL https://runtime.jackcolley.com/gate.js | node - --vault <ID>
+ *   curl -fsSL https://runtime.jackcolley.com/gate.js | node - --vault <ID> --mcp
  * ========================================================================== */
 "use strict";
 
@@ -25,7 +25,7 @@ const readline = require("readline");
 
 const FS_BASE =
   "https://firestore.googleapis.com/v1/projects/ee-offsite-simulation/databases/(default)/documents/runtime_v2_vaults";
-const DEFAULT_ORIGIN = "https://runtime-jackcolley.web.app";
+const DEFAULT_ORIGIN = "https://runtime.jackcolley.com";
 const SAFE_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 
 function validateSafeToken(val, label, allowEmpty) {
